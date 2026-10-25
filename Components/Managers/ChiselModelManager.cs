@@ -599,9 +599,12 @@ namespace Chisel.Components
                 if (ReferenceEquals(activeModel, null) ||
                     !activeModel || activeModel.gameObject.scene != activeScene)
                 {
-                    // If active model is invalid or missing, find another model the active model
-                    Instance.activeModels[activeScene] = FindModelInScene(activeScene);
-                    return null;
+                    // If active model is invalid or missing, make another model in this scene the active model
+                    // and use it right away (this used to return null on this call and only use it on the next)
+                    activeModel = FindModelInScene(activeScene);
+                    Instance.activeModels[activeScene] = activeModel;
+                    if (!activeModel)
+                        return null;
                 }
 
                 // If we have an active model, but it's actually disabled, do not use it
