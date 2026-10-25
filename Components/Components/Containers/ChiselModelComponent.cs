@@ -264,7 +264,10 @@ namespace Chisel.Components
         public bool               CreateColliderComponents = true;
         public VertexChannelFlags VertexChannelMask        = VertexChannelFlags.All;
 
-        
+        /// <summary>The model's final copy and what it was made from (see <see cref="ChiselFinalize"/>)</summary>
+        [HideInInspector] public ChiselFinalizedRecord finalized = new();
+
+
         public ChiselModelComponent() : base() { }
 
 
