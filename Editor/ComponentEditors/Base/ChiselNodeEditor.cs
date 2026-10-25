@@ -333,7 +333,10 @@ namespace Chisel.Editors
                     MoveTargetsUnderModel(new[] { component }, model);
                 }
             } else
+            {
                 model = component as ChiselModelComponent;
+                ChiselModelManager.NotifyModelCreated(model);
+            }
 
             // Set the active model before we select the gameobject, otherwise we'll be selecting the model instead
             ChiselModelManager.Instance.ActiveModel = model;

@@ -689,9 +689,23 @@ namespace Chisel.Components
             return activeModel;
         }
 
+        /// <summary>
+        /// Raised for every model made by <see cref="CreateNewModel"/> or Chisel's Create menu, so a project can give new
+        /// models its own defaults (layer, static flags, parent). Not raised for the default model.
+        /// </summary>
+        public static event Action<ChiselModelComponent> ModelCreated;
+
+        public static void NotifyModelCreated(ChiselModelComponent model)
+        {
+            if (model)
+                ModelCreated?.Invoke(model);
+        }
+
         public ChiselModelComponent CreateNewModel(Transform parent = null)
         {
-            return ChiselComponentFactory.Create<ChiselModelComponent>(kDefaultModelName, parent);
+            var model = ChiselComponentFactory.Create<ChiselModelComponent>(kDefaultModelName, parent);
+            NotifyModelCreated(model);
+            return model;
         }
 
         public ChiselModelComponent FindModelInScene(Scene scene)
