@@ -477,26 +477,28 @@ namespace Chisel.Components
 		internal ChiselModelComponent CreateDefaultModel(ChiselSceneHierarchy sceneHierarchy)
 		{
 			var currentScene = sceneHierarchy.Scene;
-			var rootGameObjects = ListPool<GameObject>.Get();
-			currentScene.GetRootGameObjects(rootGameObjects);
-			for (int i = 0; i < rootGameObjects.Count; i++)
+			// Released whichever way this returns (returning a found model used to skip the release)
+			using (ListPool<GameObject>.Get(out var rootGameObjects))
 			{
-				if (!IsDefaultModel(rootGameObjects[i]))
-					continue;
+				currentScene.GetRootGameObjects(rootGameObjects);
+				for (int i = 0; i < rootGameObjects.Count; i++)
+				{
+					if (!IsDefaultModel(rootGameObjects[i]))
+						continue;
 
-				var gameObject = rootGameObjects[i];
-				var model = gameObject.GetComponent<ChiselModelComponent>();
-				if (model)
+					var gameObject = rootGameObjects[i];
+					var model = gameObject.GetComponent<ChiselModelComponent>();
+					if (model)
+						return model;
+
+					var transform = gameObject.GetComponent<Transform>();
+					ChiselObjectUtility.ResetTransform(transform);
+
+					model = gameObject.AddComponent<ChiselModelComponent>();
+					UpdateModelFlags(model);
 					return model;
-
-				var transform = gameObject.GetComponent<Transform>();
-				ChiselObjectUtility.ResetTransform(transform);
-
-				model = gameObject.AddComponent<ChiselModelComponent>();
-				UpdateModelFlags(model);
-				return model;
+				}
 			}
-			ListPool<GameObject>.Release(rootGameObjects);
 
 
 			var oldActiveScene = SceneManager.GetActiveScene();
@@ -616,6 +618,9 @@ namespace Chisel.Components
             }
             set
             {
+                if (!value)
+                    return;
+
                 // When we set a model to be active, make sure we use the scene of its gameobject
                 var modelScene = value.gameObject.scene;
                 Instance.activeModels[modelScene] = value;
@@ -735,6 +740,7 @@ namespace Chisel.Components
                     if (!pair.Key.isLoaded || !pair.Key.IsValid())
                     {
                         removeScenes.Add(pair.Key);
+                        continue;   // else it is put back below, with no model
                     }
 
                     // Check if a current activeModel still exists
@@ -751,7 +757,7 @@ namespace Chisel.Components
                     if (gameObjectScene != pair.Key)
                     {
                         setSceneModels[pair.Key] = FindModelInScene(pair.Key);
-                        setSceneModels[gameObjectScene] = FindModelInScene(pair.Key);
+                        setSceneModels[gameObjectScene] = FindModelInScene(gameObjectScene);
                     }
                 }
 
@@ -943,9 +949,9 @@ namespace Chisel.Components
         ChiselModelComponent GetSelectedModel()
         {
             var selectedGameObjects = UnityEditor.Selection.gameObjects;
-            if (selectedGameObjects == null ||
+            if (selectedGameObjects != null &&
                 selectedGameObjects.Length == 1)
-            { 
+            {
                 var selection = selectedGameObjects[0];
                 return selection.GetComponent<ChiselModelComponent>();
             }

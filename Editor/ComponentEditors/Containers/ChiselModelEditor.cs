@@ -29,20 +29,22 @@ namespace Chisel.Editors
         internal static void CreateAsGameObject(MenuCommand menuCommand) { CreateAsGameObjectMenuCommand(menuCommand, ChiselModelComponent.kNodeTypeName); }
 
 
-        [ContextMenu("Set Active Model", false)]
+        // A component's context menu hands over the component, not its GameObject
+        [MenuItem("CONTEXT/ChiselModelComponent/Set Active Model", false)]
         internal static void SetActiveModel(MenuCommand menuCommand)
         {
-            var model = (menuCommand.context as GameObject).GetComponent<ChiselModelComponent>();
+            var model = menuCommand.context as ChiselModelComponent;
             if (model)
                 ChiselModelManager.Instance.ActiveModel = model;
         }
 
-        [ContextMenu("Set Active Model", true)]
+        [MenuItem("CONTEXT/ChiselModelComponent/Set Active Model", true)]
         internal static bool ValidateActiveModel(MenuCommand menuCommand)
         {
-            var model = (menuCommand.context as GameObject).GetComponent<ChiselModelComponent>();
-            return model;
+            var model = menuCommand.context as ChiselModelComponent;
+            return ChiselModelManager.Instance.IsSelectable(model);
         }
+
 
         readonly static GUIContent kLightingContent                        = new("Lighting");
         readonly static GUIContent kProbesContent                          = new("Probes");
