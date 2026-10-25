@@ -36,8 +36,12 @@ namespace Chisel.Components
 
         internal void Clear()
 		{
-			compactNodeIDVisibilityStateLookup.Clear();
-			entityIDVisibilityStateLookup.Clear();
+			// The tables are only created on first use (EnsureCreated), so after a domain reload they
+			// may not exist yet; clearing an uncreated NativeHashMap throws ObjectDisposedException.
+			if (compactNodeIDVisibilityStateLookup.IsCreated)
+				compactNodeIDVisibilityStateLookup.Clear();
+			if (entityIDVisibilityStateLookup.IsCreated)
+				entityIDVisibilityStateLookup.Clear();
 			Version++;
 		}
 
