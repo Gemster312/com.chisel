@@ -9,8 +9,6 @@ namespace Chisel.Editors
 		readonly static ReflectedInstanceProperty<float>  kGridOpacityProperty     = ReflectionExtensions.GetProperty<float>("UnityEditor.SceneViewGrid", "gridOpacity");
 		readonly static ReflectedInstanceProperty<int>    kGridAxisProperty        = ReflectionExtensions.GetProperty<int>("UnityEditor.SceneViewGrid", "gridAxis");
 
-        public readonly static ReflectedProperty<Vector3> kSize              = ReflectionExtensions.GetStaticProperty<Vector3>("UnityEditor.GridSettings", "size");
-
         
         internal static void GridOnSceneGUI(SceneView sceneView)
         {
