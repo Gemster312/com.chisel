@@ -45,7 +45,7 @@ namespace Chisel.Editors
             return ChiselModelManager.Instance.IsSelectable(model);
         }
 
-        readonly static GUIContent kFinalizeContents                   = new("Finalize", "Saves the model's meshes as a sculpture, which ships instead of the model. The model is switched off and kept for editing. Press Edit Model first if the model is switched off.");
+        readonly static GUIContent kFinalizeContents                   = new("Finalize", "Saves the model's meshes as a sculpture, which ships instead of the model. The model is switched off and kept for editing. Greyed out when the sculpture is already up to date.");
         readonly static GUIContent kEditModelContents                      = new("Edit Model", "Switches the model back on and its sculpture off. Finalize again when done.");
         readonly static GUIContent kSelectSculptureContents                = new("Select Sculpture");
 
@@ -1023,14 +1023,17 @@ namespace Chisel.Editors
             if (models.Count == 0)
                 return;
 
-            // Only a model that is switched on (being edited) can be finalized
-            var anySculpture = false;
-            var editedModels = new List<ChiselModelComponent>();
+            // A switched off model can only be finalized when it needs it (see ChiselModelFinalizer.CanFinalize)
+            var anySculpture      = false;
+            var onCount           = 0;
+            var finalizableModels = new List<ChiselModelComponent>();
             foreach (var model in models)
             {
                 anySculpture |= model.finalized != null && model.finalized.sculpture;
                 if (model.gameObject.activeSelf)
-                    editedModels.Add(model);
+                    onCount++;
+                if (ChiselModelFinalizer.CanFinalize(model, out _))
+                    finalizableModels.Add(model);
             }
 
             if (models.Count == 1)
@@ -1041,13 +1044,13 @@ namespace Chisel.Editors
             // Both switch the inspected models on or off, so they wait until this inspector is drawn
             using (new EditorGUILayout.HorizontalScope())
             {
-                using (new EditorGUI.DisabledScope(editedModels.Count == 0))
+                using (new EditorGUI.DisabledScope(finalizableModels.Count == 0))
                 {
                     if (GUILayout.Button(kFinalizeContents))
-                        EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeModel(editedModels);
+                        EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeModel(finalizableModels);
                 }
                 // Available for any switched off model, even one whose sculpture was deleted
-                using (new EditorGUI.DisabledScope(editedModels.Count == models.Count))
+                using (new EditorGUI.DisabledScope(onCount == models.Count))
                 {
                     if (GUILayout.Button(kEditModelContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(models);

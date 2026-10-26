@@ -47,8 +47,8 @@ namespace Chisel.Editors
                 reason = "it can't be done in Play mode.";
             else if (model.IsDefaultModel)
                 reason = "the default model can't be finalized. Move its brushes into a model first.";
-            else if (!model.gameObject.activeSelf)
-                reason = "it is switched off. Press Edit Model first.";
+            else if (!model.gameObject.activeSelf && !ChiselFinalize.NeedsFinalize(model))
+                reason = "it is already finalized.";
             else if (string.IsNullOrEmpty(model.gameObject.scene.path))
                 reason = "its scene has never been saved, so there is no folder to save the meshes in.";
             else if (model.transform.parent && !model.transform.parent.gameObject.activeInHierarchy)
@@ -77,8 +77,21 @@ namespace Chisel.Editors
                 var record = model.finalized;
                 if (rebuild || record == null || !record.sculpture || record.inputHash != ChiselFinalize.GetInputHash(model))
                 {
+                    // A switched off model has no meshes to copy, so it is switched on, where its sculpture is, to build them
+                    var wasOff = !model.gameObject.activeSelf;
+                    if (wasOff)
+                    {
+                        if (record != null && record.sculpture && record.sculpture.activeSelf)
+                            PlaceLike(model.transform, record.sculpture.transform, kFinalizeUndoName);
+                        Undo.RecordObject(model.gameObject, kFinalizeUndoName);
+                        model.gameObject.SetActive(true);
+                    }
                     if (!MakeSculpture(model))
+                    {
+                        if (wasOff)
+                            model.gameObject.SetActive(false);
                         return false;
+                    }
                 }
                 SwitchToSculpture(model);
                 Selection.activeGameObject = model.finalized.sculpture;

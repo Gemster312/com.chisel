@@ -13,7 +13,7 @@ namespace Chisel.Components
         const int kGeneratorInputHashVersion = 1;
         const int kNodeGraphHashVersion      = 1;
         const int kCSGInputHashVersion       = 1;
-        const int kFinalizeInputHashVersion  = 3;
+        const int kFinalizeInputHashVersion  = 4;
 
         // Separates otherwise identical values belonging to different node kinds.
         const int kGeneratorKind = 1;
@@ -165,7 +165,7 @@ namespace Chisel.Components
             hash.Append(ref minimumChartSize);
             hash.Append(ref stitchLightmapSeams);
             hash.Append(ref scaleInLightmap);
-            AppendAssetIdentity(ref hash, settings.LightmapParameters, surfaceParameterIdentity);
+            AppendLightmapParameters(ref hash, settings.LightmapParameters, surfaceParameterIdentity);
 
             var uvSettings    = settings.uvGenerationSettings;
             var hasUVSettings = (uvSettings != null) ? 1 : 0;
@@ -181,6 +181,20 @@ namespace Chisel.Components
                 hash.Append(ref hardAngle);
                 hash.Append(ref packMarginPixels);
             }
+        }
+
+        // Every model starts with lightmap parameters of its own, saved in its scene rather than as an asset, and those
+        // have no identity that outlasts the session (the surface parameter identity of one is made up anew after every
+        // domain reload, which flagged every finalized model as changed): hash what they hold instead
+        static void AppendLightmapParameters(ref Hash128 hash, UnityEditor.LightmapParameters parameters, SurfaceParameterIdentity surfaceParameterIdentity)
+        {
+            if (!parameters || UnityEditor.EditorUtility.IsPersistent(parameters))
+            {
+                AppendAssetIdentity(ref hash, parameters, surfaceParameterIdentity);
+                return;
+            }
+            var contents = Hash128.Compute(UnityEditor.EditorJsonUtility.ToJson(parameters));
+            hash.Append(ref contents);
         }
 
         static void AppendColliderSettings(ref Hash128 hash, ChiselGeneratedColliderSettings settings)
