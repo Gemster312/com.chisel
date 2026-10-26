@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 namespace Chisel.Editors
 {
     /// <summary>
-    /// The editor half of Finalize (Copy) (see <see cref="ChiselFinalize"/>): makes a model's final copy, a sibling
+    /// The editor half of Finalize (see <see cref="ChiselFinalize"/>): makes a model's final copy, a sibling
     /// GameObject "&lt;Model&gt; (Final)" holding the model's generated meshes as plain MeshFilter / MeshRenderer /
     /// MeshCollider components, with the meshes saved as one asset in a "Finalized" folder beside the scene. The model
     /// is then switched off and tagged EditorOnly; <see cref="EditModel"/> switches back to it.
@@ -19,7 +19,7 @@ namespace Chisel.Editors
         public const string kFinalCopySuffix = " (Final)";
         public const string kMeshFolderName  = "Finalized";
         const string kUntaggedTag            = "Untagged";
-        const string kFinalizeUndoName       = "Finalize (Copy)";
+        const string kFinalizeUndoName       = "Finalize";
         const string kEditUndoName           = "Edit Model";
 
         // Properties that tie a component to its own object or prefab, never copied from the generated components
@@ -29,7 +29,7 @@ namespace Chisel.Editors
             "m_GameObject", "m_Enabled", "m_Script", "m_EditorHideFlags", "m_EditorClassIdentifier"
         };
 
-        /// <summary>Whether Finalize (Copy) can run on this model, and if not, why</summary>
+        /// <summary>Whether Finalize can run on this model, and if not, why</summary>
         public static bool CanFinalize(ChiselModelComponent model, out string reason)
         {
             reason = null;
@@ -39,6 +39,8 @@ namespace Chisel.Editors
                 reason = "it can't be done in Play mode.";
             else if (model.IsDefaultModel)
                 reason = "the default model can't be finalized. Move its brushes into a model first.";
+            else if (!model.gameObject.activeSelf)
+                reason = "it is switched off. Press Edit Model first.";
             else if (string.IsNullOrEmpty(model.gameObject.scene.path))
                 reason = "its scene has never been saved, so there is no folder to save the meshes in.";
             else if (model.transform.parent && !model.transform.parent.gameObject.activeInHierarchy)
@@ -51,7 +53,7 @@ namespace Chisel.Editors
         /// keeps the copy's baked lighting; <paramref name="rebuild"/> makes it again anyway. Returns whether the model
         /// ended up finalized.
         /// </summary>
-        public static bool FinalizeCopy(ChiselModelComponent model, bool rebuild = false)
+        public static bool FinalizeModel(ChiselModelComponent model, bool rebuild = false)
         {
             if (!CanFinalize(model, out var reason))
             {
@@ -79,10 +81,10 @@ namespace Chisel.Editors
             }
         }
 
-        public static void FinalizeCopy(IEnumerable<ChiselModelComponent> models, bool rebuild = false)
+        public static void FinalizeModel(IEnumerable<ChiselModelComponent> models, bool rebuild = false)
         {
             foreach (var model in models)
-                FinalizeCopy(model, rebuild);
+                FinalizeModel(model, rebuild);
         }
 
         /// <summary>Switches the model back on, and its final copy off, so it can be edited. Finalize again when done.</summary>
@@ -97,6 +99,9 @@ namespace Chisel.Editors
 
             var gameObject = model.gameObject;
             var record     = model.finalized;
+            // The copy is what was moved around while finalized; FollowFinalCopy normally keeps up already
+            if (record != null && record.finalCopy && record.finalCopy.activeSelf)
+                PlaceLike(model.transform, record.finalCopy.transform, kEditUndoName);
             Undo.RecordObject(gameObject, kEditUndoName);
             if (gameObject.CompareTag(ChiselFinalize.kEditorOnlyTag))
                 gameObject.tag = (record == null || string.IsNullOrEmpty(record.tagBeforeFinalize)) ? kUntaggedTag : record.tagBeforeFinalize;
@@ -133,9 +138,69 @@ namespace Chisel.Editors
             }
             gameObject.SetActive(false);
 
+            PlaceLike(record.finalCopy.transform, model.transform, kFinalizeUndoName);
             Undo.RecordObject(record.finalCopy, kFinalizeUndoName);
             record.finalCopy.SetActive(true);
             EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+
+        /// <summary>
+        /// Called when a final copy's transform or parent changed (see ChiselFinalCopyFollower): while it is the one
+        /// switched on, its model follows it, so the model is where the copy is when it is edited or finalized again.
+        /// Not recorded for undo, since undoing the copy's move moves the model back again.
+        /// </summary>
+        internal static void FollowFinalCopy(ChiselFinalizedModelComponent finalCopy)
+        {
+            var model = finalCopy ? finalCopy.source : null;
+            if (!model || model.gameObject.activeSelf || model.finalized == null || model.finalized.finalCopy != finalCopy.gameObject)
+                return;
+            if (PlaceLike(model.transform, finalCopy.transform, undoName: null))
+            {
+                EditorUtility.SetDirty(model.transform);
+                EditorSceneManager.MarkSceneDirty(model.gameObject.scene);
+            }
+        }
+
+        /// <summary>
+        /// Gives <paramref name="target"/> the scene, parent and local position, rotation and scale of
+        /// <paramref name="source"/>, recorded for undo unless <paramref name="undoName"/> is null. Returns whether
+        /// anything changed.
+        /// </summary>
+        static bool PlaceLike(Transform target, Transform source, string undoName)
+        {
+            var changed = false;
+            var parent  = source.parent;
+            var scene   = source.gameObject.scene;
+            if (target.gameObject.scene != scene)
+            {
+                if (target.parent)
+                {
+                    if (undoName != null) Undo.SetTransformParent(target, null, false, undoName);
+                    else target.SetParent(null, false);
+                }
+                if (undoName != null) Undo.MoveGameObjectToScene(target.gameObject, scene, undoName);
+                else SceneManager.MoveGameObjectToScene(target.gameObject, scene);
+                changed = true;
+            }
+            if (target.parent != parent)
+            {
+                if (undoName != null) Undo.SetTransformParent(target, parent, false, undoName);
+                else target.SetParent(parent, false);
+                // Right beside the source, like a new copy beside its model
+                target.SetSiblingIndex(source.GetSiblingIndex() + 1);
+                changed = true;
+            }
+
+            source.GetLocalPositionAndRotation(out var position, out var rotation);
+            var scale = source.localScale;
+            target.GetLocalPositionAndRotation(out var oldPosition, out var oldRotation);
+            if (oldPosition == position && oldRotation == rotation && target.localScale == scale)
+                return changed;
+            if (undoName != null)
+                Undo.RecordObject(target, undoName);
+            target.SetLocalPositionAndRotation(position, rotation);
+            target.localScale = scale;
+            return true;
         }
 
         static bool MakeFinalCopy(ChiselModelComponent model)
@@ -143,13 +208,7 @@ namespace Chisel.Editors
             var gameObject = model.gameObject;
             var scene      = gameObject.scene;
 
-            // The meshes are built while the model is on, and their lightmap UVs are laid out for the active scene's
-            // lighting settings, which have to be the model's own scene's
-            if (!gameObject.activeSelf)
-            {
-                Undo.RecordObject(gameObject, kFinalizeUndoName);
-                gameObject.SetActive(true);
-            }
+            // The lightmap UVs are laid out for the active scene's lighting settings, which have to be the model's own scene's
             if (SceneManager.GetActiveScene() != scene)
                 SceneManager.SetActiveScene(scene);
             ChiselLightmapUVManager.UpdateLightmapResolution();
@@ -247,14 +306,9 @@ namespace Chisel.Editors
                 for (int i = children.childCount - 1; i >= 0; i--)
                     Undo.DestroyObjectImmediate(children.GetChild(i).gameObject);
                 Undo.RecordObject(copy, kFinalizeUndoName);
-                Undo.RecordObject(copy.transform, kFinalizeUndoName);
-                if (copy.transform.parent != modelTransform.parent)
-                    Undo.SetTransformParent(copy.transform, modelTransform.parent, kFinalizeUndoName);
             }
 
-            var copyTransform = copy.transform;
-            copyTransform.SetLocalPositionAndRotation(modelTransform.localPosition, modelTransform.localRotation);
-            copyTransform.localScale = modelTransform.localScale;
+            // SwitchToFinalCopy puts it where the model is
             copy.layer = modelObject.layer;
             copy.tag   = !modelObject.CompareTag(ChiselFinalize.kEditorOnlyTag) ? modelObject.tag :
                          (record == null || string.IsNullOrEmpty(record.tagBeforeFinalize)) ? kUntaggedTag : record.tagBeforeFinalize;
@@ -382,13 +436,19 @@ namespace Chisel.Editors
             return null;
         }
 
-        [MenuItem("CONTEXT/ChiselModelComponent/Finalize (Copy)")]
-        static void FinalizeCopyMenu(MenuCommand menuCommand) { FinalizeCopy(menuCommand.context as ChiselModelComponent); }
+        const string kFinalizeMenuName         = "CONTEXT/ChiselModelComponent/Finalize";
+        const string kRebuildFinalCopyMenuName = "CONTEXT/ChiselModelComponent/Finalize, Force Rebuild";
 
-        [MenuItem("CONTEXT/ChiselModelComponent/Finalize (Copy), Force Rebuild")]
-        static void RebuildFinalCopyMenu(MenuCommand menuCommand) { FinalizeCopy(menuCommand.context as ChiselModelComponent, rebuild: true); }
+        [MenuItem(kFinalizeMenuName)]
+        static void FinalizeMenu(MenuCommand menuCommand) { FinalizeModel(menuCommand.context as ChiselModelComponent); }
 
-        [MenuItem("CONTEXT/ChiselModelComponent/Edit Model (Final Copy Off)")]
+        [MenuItem(kRebuildFinalCopyMenuName)]
+        static void RebuildFinalCopyMenu(MenuCommand menuCommand) { FinalizeModel(menuCommand.context as ChiselModelComponent, rebuild: true); }
+
+        [MenuItem(kFinalizeMenuName, true), MenuItem(kRebuildFinalCopyMenuName, true)]
+        static bool ValidateFinalizeMenu(MenuCommand menuCommand) { return CanFinalize(menuCommand.context as ChiselModelComponent, out _); }
+
+        [MenuItem("CONTEXT/ChiselModelComponent/Edit Model (Final Off)")]
         static void EditModelMenu(MenuCommand menuCommand) { EditModel(menuCommand.context as ChiselModelComponent); }
     }
 }

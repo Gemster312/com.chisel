@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Chisel.Components
 {
-    /// <summary>What a model remembers of its last Finalize (Copy), see <see cref="ChiselFinalize"/></summary>
+    /// <summary>What a model remembers of its last Finalize, see <see cref="ChiselFinalize"/></summary>
     [Serializable]
     public sealed class ChiselFinalizedRecord
     {
@@ -31,7 +31,7 @@ namespace Chisel.Components
     }
 
     /// <summary>
-    /// Finalize (Copy) turns a model into plain meshes saved as assets (MeshFilter / MeshRenderer / MeshCollider) on a
+    /// Finalize turns a model into plain meshes saved as assets (MeshFilter / MeshRenderer / MeshCollider) on a
     /// copy beside it, and switches the model off and tags it EditorOnly, so a build ships only the copy while the model
     /// stays editable. This half answers whether a model needs finalizing; the editor half (ChiselModelFinalizer) makes
     /// the copies.

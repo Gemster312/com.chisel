@@ -13,7 +13,7 @@ namespace Chisel.Components
         const int kGeneratorInputHashVersion = 1;
         const int kNodeGraphHashVersion      = 1;
         const int kCSGInputHashVersion       = 1;
-        const int kFinalizeInputHashVersion  = 1;
+        const int kFinalizeInputHashVersion  = 2;
 
         // Separates otherwise identical values belonging to different node kinds.
         const int kGeneratorKind = 1;
@@ -81,10 +81,12 @@ namespace Chisel.Components
 #if UNITY_EDITOR
         /// <summary>
         /// The hash of everything a model's final copy is made from (see <see cref="ChiselFinalize"/>): its generators
-        /// like <see cref="GetCSGInputHash"/>, plus the model's own transform, layer, static flags and render/collider
-        /// settings. Unlike the CSG hash it reads the serialized settings rather than the settings store, so it is the
-        /// same for a model that is inactive or was never enabled this session, and it leaves out the generated objects
-        /// and the code version, so neither a rebuild nor a recompile makes a model look changed.
+        /// like <see cref="GetCSGInputHash"/>, plus the model's own scale (its lightmap UVs follow it), layer, static
+        /// flags and render/collider settings. Not its position or rotation: the meshes are in the model's own space, and
+        /// the model follows its final copy around (see ChiselModelFinalizer.FollowFinalCopy). Unlike the CSG hash it
+        /// reads the serialized settings rather than the settings store, so it is the same for a model that is inactive
+        /// or was never enabled this session, and it leaves out the generated objects and the code version, so neither a
+        /// rebuild nor a recompile makes a model look changed.
         /// </summary>
         public static Hash128 GetFinalizeInputHash(ChiselModelComponent model, SurfaceParameterIdentity surfaceParameterIdentity)
         {
@@ -96,13 +98,9 @@ namespace Chisel.Components
             hash.Append(ref version);
 
             var transform     = model.transform;
-            var localPosition = transform.localPosition;
-            var localRotation = transform.localRotation;
             var localScale    = transform.localScale;
             var layer         = model.gameObject.layer;
             var staticFlags   = (int)UnityEditor.GameObjectUtility.GetStaticEditorFlags(model.gameObject);
-            hash.Append(ref localPosition);
-            hash.Append(ref localRotation);
             hash.Append(ref localScale);
             hash.Append(ref layer);
             hash.Append(ref staticFlags);

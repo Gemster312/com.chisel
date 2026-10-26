@@ -45,7 +45,7 @@ namespace Chisel.Editors
             return ChiselModelManager.Instance.IsSelectable(model);
         }
 
-        readonly static GUIContent kFinalizeCopyContents                   = new("Finalize (Copy)", "Saves the model's meshes as a plain copy beside it, which ships instead of the model. The model is switched off and kept for editing.");
+        readonly static GUIContent kFinalizeContents                   = new("Finalize", "Saves the model's meshes as a plain copy beside it, which ships instead of the model. The model is switched off and kept for editing. Press Edit Model first if the model is switched off.");
         readonly static GUIContent kEditModelContents                      = new("Edit Model", "Switches the model back on and its final copy off. Finalize again when done.");
         readonly static GUIContent kSelectFinalCopyContents                = new("Select Final Copy");
 
@@ -1023,9 +1023,15 @@ namespace Chisel.Editors
             if (models.Count == 0)
                 return;
 
+            // Only a model that is switched on (being edited) can be finalized
             var anyFinalCopy = false;
+            var editedModels = new List<ChiselModelComponent>();
             foreach (var model in models)
+            {
                 anyFinalCopy |= model.finalized != null && model.finalized.finalCopy;
+                if (model.gameObject.activeSelf)
+                    editedModels.Add(model);
+            }
 
             if (models.Count == 1)
             {
@@ -1035,12 +1041,19 @@ namespace Chisel.Editors
             // Both switch the inspected models on or off, so they wait until this inspector is drawn
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(kFinalizeCopyContents))
-                    EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeCopy(models);
-                using (new EditorGUI.DisabledScope(!anyFinalCopy))
+                using (new EditorGUI.DisabledScope(editedModels.Count == 0))
+                {
+                    if (GUILayout.Button(kFinalizeContents))
+                        EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeModel(editedModels);
+                }
+                // Also for a switched off model whose final copy was deleted, which could otherwise never be switched on
+                using (new EditorGUI.DisabledScope(!anyFinalCopy && editedModels.Count == models.Count))
                 {
                     if (GUILayout.Button(kEditModelContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(models);
+                }
+                using (new EditorGUI.DisabledScope(!anyFinalCopy))
+                {
                     if (models.Count == 1 && GUILayout.Button(kSelectFinalCopyContents))
                         Selection.activeGameObject = models[0].finalized.finalCopy;
                 }

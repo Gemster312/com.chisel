@@ -9,7 +9,6 @@ namespace Chisel.Editors
     {
         readonly static GUIContent kSourceContents        = new("Model", "The model this is a copy of. It is switched off and left out of builds.");
         readonly static GUIContent kEditModelContents     = new("Edit Model", "Switches the model back on and this copy off. Finalize again when done.");
-        readonly static GUIContent kFinalizeCopyContents  = new("Finalize (Copy)", "Makes this copy again if the model changed, and switches to it.");
         readonly static GUIContent kSelectModelContents   = new("Select Model");
         const string kNoSourceMessage = "The model this was copied from is gone, so it can no longer be edited or finalized again.";
 
@@ -30,11 +29,9 @@ namespace Chisel.Editors
             if (targets.Length != 1)
                 return;
 
-            // Both switch this copy on or off, so they wait until this inspector is drawn
+            // Edit Model switches this copy off, so it waits until this inspector is drawn
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(kFinalizeCopyContents))
-                    EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeCopy(source);
                 if (GUILayout.Button(kEditModelContents))
                     EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(source);
                 if (GUILayout.Button(kSelectModelContents))
