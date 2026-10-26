@@ -783,12 +783,17 @@ namespace Chisel.Components
 			{
 				identity = Hash128.Compute(guid);
 				identity.Append(ref localId);  // by reference: a long would silently go to Append(float)
-			} else
-			{
-				identity = s_SessionIdentity;
-				identity.Append(ref surfaceParameter);
+				s_SurfaceParameterIdentities[surfaceParameter] = identity;
+				return identity;
 			}
-			s_SurfaceParameterIdentities[surfaceParameter] = identity;
+
+			// Not cached: an asset the asset database can't place yet (asked during a reload/refresh, before it's ready)
+			// would otherwise keep this session-only identity until the next reload, and every hash made from it (a
+			// finalized model's, the saved-output one) would differ from the ones made in any other session
+			if (asset != null && UnityEditor.EditorUtility.IsPersistent(asset))
+				Debug.LogWarning($"Chisel: the asset database couldn't identify {asset.name} yet; hashes made now are session-only", asset);
+			identity = s_SessionIdentity;
+			identity.Append(ref surfaceParameter);
 			return identity;
 		}
 
