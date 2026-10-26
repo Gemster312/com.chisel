@@ -73,6 +73,7 @@ namespace Chisel.Editors
                         return false;
                 }
                 SwitchToFinalCopy(model);
+                Selection.activeGameObject = model.finalized.finalCopy;
                 return true;
             }
             finally
@@ -115,6 +116,7 @@ namespace Chisel.Editors
 
             if (ChiselModelManager.Instance.IsSelectable(model))
                 ChiselModelManager.Instance.ActiveModel = model;
+            Selection.activeGameObject = gameObject;
 
             Undo.CollapseUndoOperations(undoGroup);
         }

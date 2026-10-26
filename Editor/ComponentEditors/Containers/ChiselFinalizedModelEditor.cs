@@ -32,8 +32,12 @@ namespace Chisel.Editors
             // Edit Model switches this copy off, so it waits until this inspector is drawn
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(kEditModelContents))
-                    EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(source);
+                // Already being edited, so there is nothing to switch
+                using (new EditorGUI.DisabledScope(source.gameObject.activeSelf))
+                {
+                    if (GUILayout.Button(kEditModelContents))
+                        EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(source);
+                }
                 if (GUILayout.Button(kSelectModelContents))
                     Selection.activeGameObject = source.gameObject;
             }

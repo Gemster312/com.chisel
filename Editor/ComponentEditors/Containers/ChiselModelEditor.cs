@@ -1046,8 +1046,8 @@ namespace Chisel.Editors
                     if (GUILayout.Button(kFinalizeContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeModel(editedModels);
                 }
-                // Also for a switched off model whose final copy was deleted, which could otherwise never be switched on
-                using (new EditorGUI.DisabledScope(!anyFinalCopy && editedModels.Count == models.Count))
+                // Available for any switched off model, even one whose final copy was deleted
+                using (new EditorGUI.DisabledScope(editedModels.Count == models.Count))
                 {
                     if (GUILayout.Button(kEditModelContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(models);
