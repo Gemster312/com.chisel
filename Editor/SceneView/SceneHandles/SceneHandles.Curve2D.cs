@@ -402,7 +402,8 @@ namespace Chisel.Editors
                     var isSelected		= (curveSelection == null || curveSelection.selectedPoints == null || curveSelection.selectedPoints.Length <= i) ? false : curveSelection.selectedPoints[i];
                     var showPointFocus	= haveFocus && (hoverOverPointID == i && hoverOverTangentID == -1);
 
-                    color = SceneHandles.StateColor(color, false, isSelected, showPointFocus);
+                    // Fork: the state colour was computed into the local (and compounded per point) but never applied, so points never highlighted
+                    SceneHandles.Color = SceneHandles.StateColor(color, false, isSelected, showPointFocus);
 
                     //var dotConstraint	= (prevConstraint == nextConstraint) ? prevConstraint : ControlPointConstraint.Broken;
                     var size = UnityEditor.HandleUtility.GetHandleSize(point) * kCurvePointSize;
@@ -413,6 +414,7 @@ namespace Chisel.Editors
                         case ControlPointConstraint.Mirrored:	SceneHandles.RenderBordererdDiamond(point, size); break;
                     }
                 }
+                SceneHandles.Color = color;
             }
 
             internal static float ClosestCurveHandleDistance(Curve2D curve, float closestDistance)
@@ -628,6 +630,32 @@ namespace Chisel.Editors
                 return Event.current.shift;
             }
 
+            // Fork: hover used to be picked up on MouseMove only, so when the editor never passed a MouseMove to this
+            // handle nothing highlighted and MouseDown ignored the click. Now it follows the latest Layout, like the other handles.
+            static bool UpdateHover(State state, int id)
+            {
+                if (GUIUtility.hotControl == id)
+                    return false;
+
+                var haveFocus       = id == SceneHandleUtility.FocusControl;
+                var closestPoint    = haveFocus ? state.s_ClosestPoint   : -1;
+                var closestTangent  = haveFocus ? state.s_ClosestTangent : -1;
+                var closestEdge     = haveFocus ? state.s_ClosestEdge    : -1;
+                var closestEdgePoint = haveFocus ? state.s_ClosestEdgePoint : Vector3.zero;
+
+                if (state.s_HoverOverPoint   == closestPoint &&
+                    state.s_HoverOverTangent == closestTangent &&
+                    state.s_HoverOverEdge    == closestEdge &&
+                    state.s_HoverEdgePoint   == closestEdgePoint)
+                    return false;
+
+                state.s_HoverOverPoint   = closestPoint;
+                state.s_HoverOverTangent = closestTangent;
+                state.s_HoverOverEdge    = closestEdge;
+                state.s_HoverEdgePoint   = closestEdgePoint;
+                return true;
+            }
+
             static void ClickSelect(State state, SelectionType selectionType, bool forceClear = false)
             {
                 if (state.s_NewCurveSelection != null)
@@ -694,6 +722,7 @@ namespace Chisel.Editors
                     }
                     case EventType.Repaint:
                     {
+                        UpdateHover(state, id);
                         Curve2DHandleUtility.PaintCurve(curve, id, curveSelection, state.s_HoverOverPoint, state.s_HoverOverTangent, state.s_HoverOverEdge);
                         if (state.s_HoverOverEdge != -1 && InCreateVertexMode() && !state.s_PointHasMoved)
                         {
@@ -712,37 +741,16 @@ namespace Chisel.Editors
                     case EventType.MouseMove:
                     {
                         state.s_PointHasMoved = false;
-                        var haveFocus = id == SceneHandleUtility.FocusControl;
-                        if (!haveFocus)
-                        {
-                            state.s_ClosestPoint	 = -1;
-                            state.s_ClosestTangent = -1;
-                            state.s_ClosestEdge	 = -1;
-                            state.s_ClosestEdgePoint = Vector3.zero;
-                        }
-
-                        if (state.s_HoverOverPoint		!= state.s_ClosestPoint || 
-                            state.s_HoverOverTangent	!= state.s_ClosestTangent || 
-                            state.s_HoverOverEdge		!= state.s_ClosestEdge)
-                        {
-                            state.s_HoverOverPoint		= state.s_ClosestPoint;
-                            state.s_HoverOverTangent	= state.s_ClosestTangent;
-                            state.s_HoverOverEdge		= state.s_ClosestEdge;
-                            state.s_HoverEdgePoint		= state.s_ClosestEdgePoint;
+                        if (UpdateHover(state, id))
                             SceneView.RepaintAll();
-                        } else
-                        if (state.s_HoverOverEdge	!= -1 &&
-                            state.s_HoverEdgePoint	!= state.s_ClosestEdgePoint)
-                        {
-                            state.s_HoverEdgePoint	= state.s_ClosestEdgePoint;
-                            SceneView.RepaintAll();
-                        }
                         break;
                     }
                     case EventType.MouseDown:
                     {
                         if (SceneHandles.Disabled)
                             break;
+
+                        UpdateHover(state, id);
 
                         if (state.s_HoverOverPoint == -1 && state.s_HoverOverTangent == -1 && state.s_HoverOverEdge == -1)
                             break;
