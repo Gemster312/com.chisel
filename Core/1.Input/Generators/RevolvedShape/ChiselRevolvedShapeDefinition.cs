@@ -38,7 +38,7 @@ namespace Chisel.Core
 				return 0;
 
             if (pathMatrices.IsCreated) pathMatrices.Dispose();
-			pathMatrices = BrushMeshFactory.GetCircleMatrices(revolveSegments, new float3(0, 1, 0)); // Indirect
+			pathMatrices = BrushMeshFactory.GetCircleMatrices(revolveSegments, new float3(0, 1, 0), startAngle, totalAngle); // Indirect
 
             BrushMeshFactory.Split2DPolygonAlongOriginXAxis(ref polygonVerticesList, ref polygonVerticesSegments);
 
@@ -89,12 +89,15 @@ namespace Chisel.Core
         #endregion
         
         #region Validation
+        const float kMaxSegmentAngle = 179.0f;
+
         public bool Validate()
         {
             curveSegments	    = math.max(curveSegments, 2);
-            revolveSegments	    = math.max(revolveSegments, 1);
-
             totalAngle		    = math.clamp(totalAngle, 1, 360); // TODO: constants
+
+            // Each segment is one convex brush, which needs to turn less than 180 degrees (at 180 or more it's flat or concave)
+            revolveSegments	    = math.max(revolveSegments, (int)math.ceil(totalAngle / kMaxSegmentAngle));
             return true;
         }
 

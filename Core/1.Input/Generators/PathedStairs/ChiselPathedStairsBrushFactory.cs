@@ -166,14 +166,17 @@ namespace Chisel.Core
 
                 for (int m = 0; m < subMeshCount; m++)
                 {
-                    ref var localVertices = ref brushMeshes[subMeshIndex + m].Value.localVertices;
+                    if (!brushMeshes[subMeshIndex + m].IsCreated)
+                        return false;
+                    ref var brushMesh = ref brushMeshes[subMeshIndex + m].Value;
+                    ref var localVertices = ref brushMesh.localVertices;
                     for (int v = 0; v < localVertices.Length; v++)
                     {
                         // TODO: is it possible to put all of this in a single matrix?
                         // lerp the stairs to go from less wide to wider depending on the depth of the vertex
                         var depthFactor = 1.0f - ((localVertices[v].z / absDepth) + 0.5f);
-                        var wideFactor  = (localVertices[v].x / halfWidth) + 0.5f;
-                        var scale		= (localVertices[v].x / halfWidth);
+                        var scale		= ((localVertices[v].x - centerX) / halfWidth);
+                        var wideFactor  = (scale * 0.5f) + 0.5f; // 0 on the right side (-x), 1 on the left (+x)
 
                         // lerp the stairs width depending on if it's on the left or right side of the stairs
                         localVertices[v].x = math.lerp( scale * (halfWidth - (rightShear * depthFactor)),
@@ -181,10 +184,59 @@ namespace Chisel.Core
                                                         wideFactor);
                         localVertices[v] = math.mul(transform, new float4(localVertices[v], 1)).xyz;
                     }
+
+                    // The brush was made, planes and bounds too, before its vertices moved onto the path, and the CSG works
+                    // from the planes
+                    if (!RecalculatePlanesAndBounds(ref brushMesh))
+                        return false;
                 }
 
                 subMeshIndex += subMeshCount;
             }
+            return true;
+        }
+
+        // As CalculatePlanes and CalculateBounds do while a brush mesh is being built, for one that's already built. False when
+        // a polygon has collapsed (no area, so no plane), as happens when flights are too deep for their path and meet
+        static bool RecalculatePlanesAndBounds(ref BrushMeshBlob brushMesh)
+        {
+            ref var vertices  = ref brushMesh.localVertices;
+            ref var halfEdges = ref brushMesh.halfEdges;
+            ref var polygons  = ref brushMesh.polygons;
+            for (int p = 0; p < polygons.Length && p < brushMesh.localPlanes.Length; p++)
+            {
+                // Newell's algorithm, as in CalculatePlane
+                var firstEdge  = polygons[p].firstEdge;
+                var lastEdge   = firstEdge + polygons[p].edgeCount;
+                var normal     = double3.zero;
+                var prevVertex = (double3)vertices[halfEdges[lastEdge - 1].vertexIndex];
+                for (int n = firstEdge; n < lastEdge; n++)
+                {
+                    var currVertex = (double3)vertices[halfEdges[n].vertexIndex];
+                    normal.x += ((prevVertex.y - currVertex.y) * (prevVertex.z + currVertex.z));
+                    normal.y += ((prevVertex.z - currVertex.z) * (prevVertex.x + currVertex.x));
+                    normal.z += ((prevVertex.x - currVertex.x) * (prevVertex.y + currVertex.y));
+                    prevVertex = currVertex;
+                }
+                if (math.lengthsq(normal) < 1e-12)
+                    return false;
+                normal = math.normalize(normal);
+
+                var d = 0.0;
+                for (int n = firstEdge; n < lastEdge; n++)
+                    d -= math.dot(normal, vertices[halfEdges[n].vertexIndex]);
+                d /= polygons[p].edgeCount;
+                brushMesh.localPlanes[p] = new float4((float3)normal, (float)d);
+            }
+
+            var min = new float3(float.PositiveInfinity);
+            var max = new float3(float.NegativeInfinity);
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                min = math.min(min, vertices[i]);
+                max = math.max(max, vertices[i]);
+            }
+            brushMesh.localBounds = new MinMaxAABB { Min = min, Max = max };
             return true;
         }
 

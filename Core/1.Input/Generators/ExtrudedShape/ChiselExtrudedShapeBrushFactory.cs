@@ -55,6 +55,28 @@ namespace Chisel.Core
             return true;
         }
 
+        // Whether the polygon's cap at matrix0 (polygon 0 of the brush, its vertices in order) faces the cap at matrix1. Same
+        // Newell normal as CalculatePlane, where inside is the negative side
+        static bool CapFacesOtherCap(in UnsafeList<SegmentVertex> shapeVertices, Range range, float4x4 matrix0, float4x4 matrix1)
+        {
+            var normal  = float3.zero;
+            var center0 = float3.zero;
+            var center1 = float3.zero;
+            var prevVertex = math.transform(matrix0, new float3(shapeVertices[range.end - 1].position, 0));
+            for (int s = range.start; s < range.end; s++)
+            {
+                var point      = new float3(shapeVertices[s].position, 0);
+                var currVertex = math.transform(matrix0, point);
+                normal.x += (prevVertex.y - currVertex.y) * (prevVertex.z + currVertex.z);
+                normal.y += (prevVertex.z - currVertex.z) * (prevVertex.x + currVertex.x);
+                normal.z += (prevVertex.x - currVertex.x) * (prevVertex.y + currVertex.y);
+                center0 += currVertex;
+                center1 += math.transform(matrix1, point);
+                prevVertex = currVertex;
+            }
+            return math.dot(normal, center1 - center0) > 0;
+        }
+
         public static unsafe bool GenerateExtrudedShape(NativeList<BlobAssetReference<BrushMeshBlob>> brushMeshes, 
                                                         in UnsafeList<SegmentVertex>    polygonVerticesArray, 
                                                         in UnsafeList<int>              polygonVerticesSegments,
@@ -96,10 +118,9 @@ namespace Chisel.Core
                     var matrix0 = pathMatrices[s - 1];
                     var matrix1 = pathMatrices[s];
 
-                    var polygonVertex4      = new float4(polygonVerticesArray[range.start].position, 0, 1);
-                    var distanceToBottom    = math.mul(math.inverse(matrix0), math.mul(matrix1, polygonVertex4)).z;
-                     
-                    if (distanceToBottom < 0) { var m = matrix0; matrix0 = matrix1; matrix1 = m; }
+                    // The cap at matrix0 must face away from the cap at matrix1, or the brush is inside-out (and generates nothing).
+                    // Measured on the real caps: path matrices mirror z, revolve matrices don't, so the sign of z alone can't tell
+                    if (CapFacesOtherCap(in polygonVerticesArray, range, matrix0, matrix1)) { var m = matrix0; matrix0 = matrix1; matrix1 = m; }
 
                     if (brushMeshIndex >= brushMeshes.Length)
                     {
@@ -111,8 +132,9 @@ namespace Chisel.Core
                     using var builder = new BlobBuilder(Allocator.Temp);
                     ref var root = ref builder.ConstructRoot<BrushMeshBlob>();
                     
+                    // Fail the whole shape rather than leave an empty brush behind (it'd have an invalid brushMeshID)
                     if (!GetExtrudedVertices(polygonVerticesArray, range, matrix0, matrix1, in builder, ref root, out var localVertices, out var segmentIndices, Allocator.Temp))
-                        continue;
+                        return false;
 
                     using (segmentIndices)
                     {
