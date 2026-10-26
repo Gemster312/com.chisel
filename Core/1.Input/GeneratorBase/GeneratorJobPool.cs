@@ -59,10 +59,14 @@ namespace Chisel.Core
         {
             if (s_Instance == null)
                 return;
-            foreach (var pool in s_Instance.generatorPools)
+            // Dispose unregisters the pool, so walk a copy and register it again: the pools are static and are never
+            // made again without a domain reload, and an unregistered pool takes updates it never runs (its brushes
+            // never get a mesh, and their surface blobs leak)
+            foreach (var pool in s_Instance.generatorPools.ToArray())
             {
                 pool.Dispose();
                 pool.AllocateOrClear();
+                Register(pool);
             }
         }
 
