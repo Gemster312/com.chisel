@@ -176,7 +176,7 @@ namespace Chisel.Editors
                     continue;
                 renderables.Add(renderable);
                 sources.Add(renderable.sharedMesh);
-                names.Add(GetRenderableName(index));
+                names.Add(renderables.Count == 1 ? "Mesh" : $"Mesh {renderables.Count}");
             }
             foreach (var collider in generated.colliders)
             {
@@ -224,13 +224,6 @@ namespace Chisel.Editors
             model.finalized.inputHash = ChiselFinalize.GetInputHash(model);
             EditorUtility.SetDirty(model);
             return true;
-        }
-
-        // "‹[generated-Renderable|ShadowCasting]›" -> "Renderable, ShadowCasting"
-        static string GetRenderableName(int index)
-        {
-            var name = ChiselGeneratedObjects.kGeneratedMeshRendererNames[index];
-            return name.Replace("‹[generated-", "").Replace("]›", "").Replace("|", ", ");
         }
 
         /// <summary>The copy, made beside the model when it has none, otherwise emptied, placed and flagged like the model</summary>
