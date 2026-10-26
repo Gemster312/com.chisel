@@ -9,15 +9,23 @@ using UnityEngine.SceneManagement;
 namespace Chisel.Editors
 {
     /// <summary>
-    /// The editor half of Finalize (see <see cref="ChiselFinalize"/>): makes a model's final copy, a sibling
-    /// GameObject "&lt;Model&gt; (Final)" holding the model's generated meshes as plain MeshFilter / MeshRenderer /
-    /// MeshCollider components, with the meshes saved as one asset in a "Finalized" folder beside the scene. The model
-    /// is then switched off and tagged EditorOnly; <see cref="EditModel"/> switches back to it.
+    /// The editor half of Finalize (see <see cref="ChiselFinalize"/>): makes a model's sculpture, a GameObject named
+    /// like the model holding its generated meshes as plain MeshFilter / MeshRenderer / MeshCollider components, with
+    /// the meshes saved as one asset in a "Sculptures" folder beside the scene. The sculpture goes where
+    /// <see cref="SculptureParent"/> says, else right beside the model as "&lt;Model&gt; (Sculpture)". The model is then
+    /// switched off and tagged EditorOnly; <see cref="EditModel"/> switches back to it.
     /// </summary>
     public static class ChiselModelFinalizer
     {
-        public const string kFinalCopySuffix = " (Final)";
-        public const string kMeshFolderName  = "Finalized";
+        /// <summary>
+        /// Where a model's sculpture goes when it is made (or moved to the model's scene), so a project can keep
+        /// sculptures in a folder of their own. A parent in another scene than the model's, or null, puts the
+        /// sculpture right beside its model instead.
+        /// </summary>
+        public static System.Func<ChiselModelComponent, Transform> SculptureParent;
+
+        public const string kSculptureSuffix = " (Sculpture)";
+        public const string kMeshFolderName  = "Sculptures";
         const string kUntaggedTag            = "Untagged";
         const string kFinalizeUndoName       = "Finalize";
         const string kEditUndoName           = "Edit Model";
@@ -49,8 +57,8 @@ namespace Chisel.Editors
         }
 
         /// <summary>
-        /// Makes the model's final copy and switches to it. When the copy is already up to date it only switches, which
-        /// keeps the copy's baked lighting; <paramref name="rebuild"/> makes it again anyway. Returns whether the model
+        /// Makes the model's sculpture and switches to it. When the sculpture is already up to date it only switches,
+        /// which keeps the sculpture's baked lighting; <paramref name="rebuild"/> makes it again anyway. Returns whether the model
         /// ended up finalized.
         /// </summary>
         public static bool FinalizeModel(ChiselModelComponent model, bool rebuild = false)
@@ -67,13 +75,13 @@ namespace Chisel.Editors
             try
             {
                 var record = model.finalized;
-                if (rebuild || record == null || !record.finalCopy || record.inputHash != ChiselFinalize.GetInputHash(model))
+                if (rebuild || record == null || !record.sculpture || record.inputHash != ChiselFinalize.GetInputHash(model))
                 {
-                    if (!MakeFinalCopy(model))
+                    if (!MakeSculpture(model))
                         return false;
                 }
-                SwitchToFinalCopy(model);
-                Selection.activeGameObject = model.finalized.finalCopy;
+                SwitchToSculpture(model);
+                Selection.activeGameObject = model.finalized.sculpture;
                 return true;
             }
             finally
@@ -88,7 +96,7 @@ namespace Chisel.Editors
                 FinalizeModel(model, rebuild);
         }
 
-        /// <summary>Switches the model back on, and its final copy off, so it can be edited. Finalize again when done.</summary>
+        /// <summary>Switches the model back on, and its sculpture off, so it can be edited. Finalize again when done.</summary>
         public static void EditModel(ChiselModelComponent model)
         {
             if (!model)
@@ -100,17 +108,17 @@ namespace Chisel.Editors
 
             var gameObject = model.gameObject;
             var record     = model.finalized;
-            // The copy is what was moved around while finalized; FollowFinalCopy normally keeps up already
-            if (record != null && record.finalCopy && record.finalCopy.activeSelf)
-                PlaceLike(model.transform, record.finalCopy.transform, kEditUndoName);
+            // The sculpture is what was moved around while finalized; FollowSculpture normally keeps up already
+            if (record != null && record.sculpture && record.sculpture.activeSelf)
+                PlaceLike(model.transform, record.sculpture.transform, kEditUndoName);
             Undo.RecordObject(gameObject, kEditUndoName);
             if (gameObject.CompareTag(ChiselFinalize.kEditorOnlyTag))
                 gameObject.tag = (record == null || string.IsNullOrEmpty(record.tagBeforeFinalize)) ? kUntaggedTag : record.tagBeforeFinalize;
             gameObject.SetActive(true);
-            if (record != null && record.finalCopy)
+            if (record != null && record.sculpture)
             {
-                Undo.RecordObject(record.finalCopy, kEditUndoName);
-                record.finalCopy.SetActive(false);
+                Undo.RecordObject(record.sculpture, kEditUndoName);
+                record.sculpture.SetActive(false);
             }
             EditorSceneManager.MarkSceneDirty(gameObject.scene);
 
@@ -127,7 +135,7 @@ namespace Chisel.Editors
                 EditModel(model);
         }
 
-        static void SwitchToFinalCopy(ChiselModelComponent model)
+        static void SwitchToSculpture(ChiselModelComponent model)
         {
             var gameObject = model.gameObject;
             var record     = model.finalized;
@@ -140,23 +148,33 @@ namespace Chisel.Editors
             }
             gameObject.SetActive(false);
 
-            PlaceLike(record.finalCopy.transform, model.transform, kFinalizeUndoName);
-            Undo.RecordObject(record.finalCopy, kFinalizeUndoName);
-            record.finalCopy.SetActive(true);
+            var sculpture = record.sculpture;
+            if (sculpture.scene != gameObject.scene)
+                MoveToScene(sculpture.transform, gameObject.scene, ParentForSculpture(model), kFinalizeUndoName);
+            PlaceLike(sculpture.transform, model.transform, kFinalizeUndoName);
+            Undo.RecordObject(sculpture, kFinalizeUndoName);
+            sculpture.name = SculptureName(model, sculpture.transform);
+            sculpture.SetActive(true);
             EditorSceneManager.MarkSceneDirty(gameObject.scene);
         }
 
         /// <summary>
-        /// Called when a final copy's transform or parent changed (see ChiselFinalCopyFollower): while it is the one
-        /// switched on, its model follows it, so the model is where the copy is when it is edited or finalized again.
-        /// Not recorded for undo, since undoing the copy's move moves the model back again.
+        /// Called when a sculpture's transform or parent changed (see ChiselSculptureFollower): while it is the one
+        /// switched on, its model follows it, so the model is where the sculpture is when it is edited or finalized
+        /// again. Not recorded for undo, since undoing the sculpture's move moves the model back again.
         /// </summary>
-        internal static void FollowFinalCopy(ChiselFinalizedModelComponent finalCopy)
+        internal static void FollowSculpture(ChiselSculptureComponent sculpture)
         {
-            var model = finalCopy ? finalCopy.source : null;
-            if (!model || model.gameObject.activeSelf || model.finalized == null || model.finalized.finalCopy != finalCopy.gameObject)
+            var model = sculpture ? sculpture.source : null;
+            if (!model || model.gameObject.activeSelf || model.finalized == null || model.finalized.sculpture != sculpture.gameObject)
                 return;
-            if (PlaceLike(model.transform, finalCopy.transform, undoName: null))
+            var moved = false;
+            if (model.gameObject.scene != sculpture.gameObject.scene)
+            {
+                MoveToScene(model.transform, sculpture.gameObject.scene, parent: null, undoName: null);
+                moved = true;
+            }
+            if (PlaceLike(model.transform, sculpture.transform, undoName: null) || moved)
             {
                 EditorUtility.SetDirty(model.transform);
                 EditorSceneManager.MarkSceneDirty(model.gameObject.scene);
@@ -164,40 +182,33 @@ namespace Chisel.Editors
         }
 
         /// <summary>
-        /// Gives <paramref name="target"/> the scene, parent and local position, rotation and scale of
-        /// <paramref name="source"/>, recorded for undo unless <paramref name="undoName"/> is null. Returns whether
-        /// anything changed.
+        /// Gives <paramref name="target"/> the position, rotation and scale <paramref name="source"/> has in the
+        /// world, under the parent the target already has (a model and its sculpture can be kept in different
+        /// folders), recorded for undo unless <paramref name="undoName"/> is null. Returns whether anything changed.
         /// </summary>
         static bool PlaceLike(Transform target, Transform source, string undoName)
         {
-            var changed = false;
-            var parent  = source.parent;
-            var scene   = source.gameObject.scene;
-            if (target.gameObject.scene != scene)
+            Vector3 position, scale;
+            Quaternion rotation;
+            var parent = target.parent;
+            if (parent == source.parent)
             {
-                if (target.parent)
-                {
-                    if (undoName != null) Undo.SetTransformParent(target, null, false, undoName);
-                    else target.SetParent(null, false);
-                }
-                if (undoName != null) Undo.MoveGameObjectToScene(target.gameObject, scene, undoName);
-                else SceneManager.MoveGameObjectToScene(target.gameObject, scene);
-                changed = true;
-            }
-            if (target.parent != parent)
+                source.GetLocalPositionAndRotation(out position, out rotation);
+                scale = source.localScale;
+            } else if (!parent)
             {
-                if (undoName != null) Undo.SetTransformParent(target, parent, false, undoName);
-                else target.SetParent(parent, false);
-                // Right beside the source, like a new copy beside its model
-                target.SetSiblingIndex(source.GetSiblingIndex() + 1);
-                changed = true;
+                source.GetPositionAndRotation(out position, out rotation);
+                scale = source.lossyScale;
+            } else
+            {
+                // Exact while neither parent is skewed (rotated with uneven scale), which a folder never is
+                position = parent.InverseTransformPoint(source.position);
+                rotation = Quaternion.Inverse(parent.rotation) * source.rotation;
+                scale    = Divide(source.lossyScale, parent.lossyScale);
             }
-
-            source.GetLocalPositionAndRotation(out var position, out var rotation);
-            var scale = source.localScale;
             target.GetLocalPositionAndRotation(out var oldPosition, out var oldRotation);
             if (oldPosition == position && oldRotation == rotation && target.localScale == scale)
-                return changed;
+                return false;
             if (undoName != null)
                 Undo.RecordObject(target, undoName);
             target.SetLocalPositionAndRotation(position, rotation);
@@ -205,7 +216,44 @@ namespace Chisel.Editors
             return true;
         }
 
-        static bool MakeFinalCopy(ChiselModelComponent model)
+        static Vector3 Divide(Vector3 value, Vector3 by)
+        {
+            return new Vector3(by.x != 0f ? value.x / by.x : value.x,
+                               by.y != 0f ? value.y / by.y : value.y,
+                               by.z != 0f ? value.z / by.z : value.z);
+        }
+
+        /// <summary>Moves <paramref name="target"/> into <paramref name="scene"/>, under <paramref name="parent"/> if it is in that scene, else at its top level</summary>
+        static void MoveToScene(Transform target, Scene scene, Transform parent, string undoName)
+        {
+            if (target.parent)
+            {
+                if (undoName != null) Undo.SetTransformParent(target, null, false, undoName);
+                else target.SetParent(null, false);
+            }
+            if (undoName != null) Undo.MoveGameObjectToScene(target.gameObject, scene, undoName);
+            else SceneManager.MoveGameObjectToScene(target.gameObject, scene);
+            if (parent && parent.gameObject.scene == scene)
+            {
+                if (undoName != null) Undo.SetTransformParent(target, parent, false, undoName);
+                else target.SetParent(parent, false);
+            }
+        }
+
+        /// <summary>Where the model's sculpture goes: <see cref="SculptureParent"/>'s answer if it is in the model's scene, else the model's own parent</summary>
+        static Transform ParentForSculpture(ChiselModelComponent model)
+        {
+            var parent = SculptureParent?.Invoke(model);
+            return (parent && parent.gameObject.scene == model.gameObject.scene) ? parent : model.transform.parent;
+        }
+
+        /// <summary>Named like its model; right beside it, " (Sculpture)" tells the two apart</summary>
+        static string SculptureName(ChiselModelComponent model, Transform sculpture)
+        {
+            return (sculpture.parent == model.transform.parent) ? model.name + kSculptureSuffix : model.name;
+        }
+
+        static bool MakeSculpture(ChiselModelComponent model)
         {
             var gameObject = model.gameObject;
             var scene      = gameObject.scene;
@@ -249,14 +297,14 @@ namespace Chisel.Editors
             }
 
             var record = model.finalized;
-            var meshes = SaveMeshes(model, (record != null) ? record.finalCopy : null, sources, names);
+            var meshes = SaveMeshes(model, (record != null) ? record.sculpture : null, sources, names);
 
-            var copy = MakeOrClearCopy(model);
-            var copyTransform = copy.transform;
+            var sculpture = MakeOrClearSculpture(model);
+            var sculptureTransform = sculpture.transform;
             int meshIndex = 0;
             foreach (var renderable in renderables)
             {
-                var part = MakePart(names[meshIndex], copyTransform, renderable.container);
+                var part = MakePart(names[meshIndex], sculptureTransform, renderable.container);
                 part.AddComponent<MeshFilter>().sharedMesh = meshes[meshIndex];
                 var meshRenderer = part.AddComponent<MeshRenderer>();
                 CopySettings(renderable.meshRenderer, meshRenderer);
@@ -269,7 +317,7 @@ namespace Chisel.Editors
             }
             if (colliders.Count > 0)
             {
-                var part = MakePart("Collider", copyTransform, generated.colliderContainer);
+                var part = MakePart("Collider", sculptureTransform, generated.colliderContainer);
                 foreach (var collider in colliders)
                 {
                     var meshCollider = part.AddComponent<MeshCollider>();
@@ -281,49 +329,51 @@ namespace Chisel.Editors
 
             Undo.RecordObject(model, kFinalizeUndoName);
             model.finalized ??= new ChiselFinalizedRecord();
-            model.finalized.finalCopy = copy;
+            model.finalized.sculpture = sculpture;
             model.finalized.inputHash = ChiselFinalize.GetInputHash(model);
             EditorUtility.SetDirty(model);
             return true;
         }
 
-        /// <summary>The copy, made beside the model when it has none, otherwise emptied, placed and flagged like the model</summary>
-        static GameObject MakeOrClearCopy(ChiselModelComponent model)
+        /// <summary>The sculpture, made where <see cref="ParentForSculpture"/> says when the model has none, otherwise emptied; flagged like the model</summary>
+        static GameObject MakeOrClearSculpture(ChiselModelComponent model)
         {
             var modelObject    = model.gameObject;
             var modelTransform = model.transform;
             var record         = model.finalized;
-            var copy           = (record != null) ? record.finalCopy : null;
-            if (!copy)
+            var sculpture      = (record != null) ? record.sculpture : null;
+            if (!sculpture)
             {
-                // Made in the active scene, which MakeFinalCopy made the model's
-                copy = new GameObject(model.name + kFinalCopySuffix);
-                copy.SetActive(false);
-                copy.transform.SetParent(modelTransform.parent, false);
-                copy.transform.SetSiblingIndex(modelTransform.GetSiblingIndex() + 1);
-                Undo.RegisterCreatedObjectUndo(copy, kFinalizeUndoName);
+                // Made in the active scene, which MakeSculpture made the model's
+                sculpture = new GameObject(model.name);
+                sculpture.SetActive(false);
+                var parent = ParentForSculpture(model);
+                sculpture.transform.SetParent(parent, false);
+                if (parent == modelTransform.parent)
+                    sculpture.transform.SetSiblingIndex(modelTransform.GetSiblingIndex() + 1);
+                Undo.RegisterCreatedObjectUndo(sculpture, kFinalizeUndoName);
             } else
             {
-                var children = copy.transform;
+                var children = sculpture.transform;
                 for (int i = children.childCount - 1; i >= 0; i--)
                     Undo.DestroyObjectImmediate(children.GetChild(i).gameObject);
-                Undo.RecordObject(copy, kFinalizeUndoName);
+                Undo.RecordObject(sculpture, kFinalizeUndoName);
             }
 
-            // SwitchToFinalCopy puts it where the model is
-            copy.layer = modelObject.layer;
-            copy.tag   = !modelObject.CompareTag(ChiselFinalize.kEditorOnlyTag) ? modelObject.tag :
-                         (record == null || string.IsNullOrEmpty(record.tagBeforeFinalize)) ? kUntaggedTag : record.tagBeforeFinalize;
-            GameObjectUtility.SetStaticEditorFlags(copy, GameObjectUtility.GetStaticEditorFlags(modelObject));
+            // SwitchToSculpture puts it where the model is, and names it
+            sculpture.layer = modelObject.layer;
+            sculpture.tag   = !modelObject.CompareTag(ChiselFinalize.kEditorOnlyTag) ? modelObject.tag :
+                              (record == null || string.IsNullOrEmpty(record.tagBeforeFinalize)) ? kUntaggedTag : record.tagBeforeFinalize;
+            GameObjectUtility.SetStaticEditorFlags(sculpture, GameObjectUtility.GetStaticEditorFlags(modelObject));
 
-            if (!copy.TryGetComponent<ChiselFinalizedModelComponent>(out var marker))
-                marker = Undo.AddComponent<ChiselFinalizedModelComponent>(copy);
+            if (!sculpture.TryGetComponent<ChiselSculptureComponent>(out var marker))
+                marker = Undo.AddComponent<ChiselSculptureComponent>(sculpture);
             Undo.RecordObject(marker, kFinalizeUndoName);
             marker.source = model;
-            return copy;
+            return sculpture;
         }
 
-        // A child of the copy at its origin, with the layer and static flags Chisel gave the generated object it copies
+        // A child of the sculpture at its origin, with the layer and static flags Chisel gave the generated object it copies
         static GameObject MakePart(string name, Transform parent, GameObject generatedObject)
         {
             var part = new GameObject(name);
@@ -351,13 +401,13 @@ namespace Chisel.Editors
         }
 
         /// <summary>
-        /// Saves copies of <paramref name="sources"/> as one asset, the one the final copy's meshes are in if it has
-        /// one, else a new "Finalized/&lt;Model&gt;.asset" beside the scene. Meshes already in it are overwritten in place,
+        /// Saves copies of <paramref name="sources"/> as one asset, the one the sculpture's meshes are in if it has
+        /// one, else a new "Sculptures/&lt;Model&gt;.asset" beside the scene. Meshes already in it are overwritten in place,
         /// by name, so whatever else uses them keeps working.
         /// </summary>
-        static Mesh[] SaveMeshes(ChiselModelComponent model, GameObject oldCopy, List<Mesh> sources, List<string> names)
+        static Mesh[] SaveMeshes(ChiselModelComponent model, GameObject oldSculpture, List<Mesh> sources, List<string> names)
         {
-            var path = FindMeshAssetPath(oldCopy);
+            var path = FindMeshAssetPath(oldSculpture);
             if (sources.Count == 0)
             {
                 if (path != null)
@@ -419,17 +469,17 @@ namespace Chisel.Editors
             return meshes;
         }
 
-        static string FindMeshAssetPath(GameObject copy)
+        static string FindMeshAssetPath(GameObject sculpture)
         {
-            if (!copy)
+            if (!sculpture)
                 return null;
-            foreach (var meshFilter in copy.GetComponentsInChildren<MeshFilter>(includeInactive: true))
+            foreach (var meshFilter in sculpture.GetComponentsInChildren<MeshFilter>(includeInactive: true))
             {
                 var path = AssetDatabase.GetAssetPath(meshFilter.sharedMesh);
                 if (!string.IsNullOrEmpty(path))
                     return path;
             }
-            foreach (var meshCollider in copy.GetComponentsInChildren<MeshCollider>(includeInactive: true))
+            foreach (var meshCollider in sculpture.GetComponentsInChildren<MeshCollider>(includeInactive: true))
             {
                 var path = AssetDatabase.GetAssetPath(meshCollider.sharedMesh);
                 if (!string.IsNullOrEmpty(path))
@@ -439,18 +489,18 @@ namespace Chisel.Editors
         }
 
         const string kFinalizeMenuName         = "CONTEXT/ChiselModelComponent/Finalize";
-        const string kRebuildFinalCopyMenuName = "CONTEXT/ChiselModelComponent/Finalize, Force Rebuild";
+        const string kRebuildSculptureMenuName = "CONTEXT/ChiselModelComponent/Finalize, Force Rebuild";
 
         [MenuItem(kFinalizeMenuName)]
         static void FinalizeMenu(MenuCommand menuCommand) { FinalizeModel(menuCommand.context as ChiselModelComponent); }
 
-        [MenuItem(kRebuildFinalCopyMenuName)]
-        static void RebuildFinalCopyMenu(MenuCommand menuCommand) { FinalizeModel(menuCommand.context as ChiselModelComponent, rebuild: true); }
+        [MenuItem(kRebuildSculptureMenuName)]
+        static void RebuildSculptureMenu(MenuCommand menuCommand) { FinalizeModel(menuCommand.context as ChiselModelComponent, rebuild: true); }
 
-        [MenuItem(kFinalizeMenuName, true), MenuItem(kRebuildFinalCopyMenuName, true)]
+        [MenuItem(kFinalizeMenuName, true), MenuItem(kRebuildSculptureMenuName, true)]
         static bool ValidateFinalizeMenu(MenuCommand menuCommand) { return CanFinalize(menuCommand.context as ChiselModelComponent, out _); }
 
-        [MenuItem("CONTEXT/ChiselModelComponent/Edit Model (Final Off)")]
+        [MenuItem("CONTEXT/ChiselModelComponent/Edit Model (Sculpture Off)")]
         static void EditModelMenu(MenuCommand menuCommand) { EditModel(menuCommand.context as ChiselModelComponent); }
     }
 }

@@ -5,13 +5,13 @@ using UnityEngine;
 namespace Chisel.Editors
 {
     /// <summary>
-    /// Keeps a finalized model where its final copy is: whenever a final copy is moved, rotated, scaled or reparented
-    /// (by hand, by script or by undo), its model follows (see <see cref="ChiselModelFinalizer.FollowFinalCopy"/>).
+    /// Keeps a finalized model where its sculpture is: whenever a sculpture is moved, rotated, scaled or reparented
+    /// (by hand, by script or by undo), its model follows (see <see cref="ChiselModelFinalizer.FollowSculpture"/>).
     /// </summary>
     [InitializeOnLoad]
-    static class ChiselFinalCopyFollower
+    static class ChiselSculptureFollower
     {
-        static ChiselFinalCopyFollower()
+        static ChiselSculptureFollower()
         {
             ObjectChangeEvents.changesPublished -= OnChangesPublished;
             ObjectChangeEvents.changesPublished += OnChangesPublished;
@@ -40,8 +40,8 @@ namespace Chisel.Editors
                 var gameObject = changed as GameObject;
                 if (!gameObject && changed is Component component)
                     gameObject = component.gameObject;
-                if (gameObject && gameObject.TryGetComponent<ChiselFinalizedModelComponent>(out var finalCopy))
-                    ChiselModelFinalizer.FollowFinalCopy(finalCopy);
+                if (gameObject && gameObject.TryGetComponent<ChiselSculptureComponent>(out var sculpture))
+                    ChiselModelFinalizer.FollowSculpture(sculpture);
             }
         }
     }

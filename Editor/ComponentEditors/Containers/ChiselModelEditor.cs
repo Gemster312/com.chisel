@@ -45,9 +45,9 @@ namespace Chisel.Editors
             return ChiselModelManager.Instance.IsSelectable(model);
         }
 
-        readonly static GUIContent kFinalizeContents                   = new("Finalize", "Saves the model's meshes as a plain copy beside it, which ships instead of the model. The model is switched off and kept for editing. Press Edit Model first if the model is switched off.");
-        readonly static GUIContent kEditModelContents                      = new("Edit Model", "Switches the model back on and its final copy off. Finalize again when done.");
-        readonly static GUIContent kSelectFinalCopyContents                = new("Select Final Copy");
+        readonly static GUIContent kFinalizeContents                   = new("Finalize", "Saves the model's meshes as a sculpture, which ships instead of the model. The model is switched off and kept for editing. Press Edit Model first if the model is switched off.");
+        readonly static GUIContent kEditModelContents                      = new("Edit Model", "Switches the model back on and its sculpture off. Finalize again when done.");
+        readonly static GUIContent kSelectSculptureContents                = new("Select Sculpture");
 
         readonly static GUIContent kLightingContent                        = new("Lighting");
         readonly static GUIContent kProbesContent                          = new("Probes");
@@ -1024,11 +1024,11 @@ namespace Chisel.Editors
                 return;
 
             // Only a model that is switched on (being edited) can be finalized
-            var anyFinalCopy = false;
+            var anySculpture = false;
             var editedModels = new List<ChiselModelComponent>();
             foreach (var model in models)
             {
-                anyFinalCopy |= model.finalized != null && model.finalized.finalCopy;
+                anySculpture |= model.finalized != null && model.finalized.sculpture;
                 if (model.gameObject.activeSelf)
                     editedModels.Add(model);
             }
@@ -1046,16 +1046,16 @@ namespace Chisel.Editors
                     if (GUILayout.Button(kFinalizeContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.FinalizeModel(editedModels);
                 }
-                // Available for any switched off model, even one whose final copy was deleted
+                // Available for any switched off model, even one whose sculpture was deleted
                 using (new EditorGUI.DisabledScope(editedModels.Count == models.Count))
                 {
                     if (GUILayout.Button(kEditModelContents))
                         EditorApplication.delayCall += () => ChiselModelFinalizer.EditModel(models);
                 }
-                using (new EditorGUI.DisabledScope(!anyFinalCopy))
+                using (new EditorGUI.DisabledScope(!anySculpture))
                 {
-                    if (models.Count == 1 && GUILayout.Button(kSelectFinalCopyContents))
-                        Selection.activeGameObject = models[0].finalized.finalCopy;
+                    if (models.Count == 1 && GUILayout.Button(kSelectSculptureContents))
+                        Selection.activeGameObject = models[0].finalized.sculpture;
                 }
             }
             EditorGUILayout.Space();

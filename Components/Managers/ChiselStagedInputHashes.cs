@@ -80,10 +80,10 @@ namespace Chisel.Components
 
 #if UNITY_EDITOR
         /// <summary>
-        /// The hash of everything a model's final copy is made from (see <see cref="ChiselFinalize"/>): its generators
+        /// The hash of everything a model's sculpture is made from (see <see cref="ChiselFinalize"/>): its generators
         /// like <see cref="GetCSGInputHash"/>, plus the model's own scale (its lightmap UVs follow it), layer, static
         /// flags and render/collider settings. Not its position or rotation: the meshes are in the model's own space, and
-        /// the model follows its final copy around (see ChiselModelFinalizer.FollowFinalCopy). Unlike the CSG hash it
+        /// the model follows its sculpture around (see ChiselModelFinalizer.FollowSculpture). Unlike the CSG hash it
         /// reads the serialized settings rather than the settings store, so it is the same for a model that is inactive
         /// or was never enabled this session, and it leaves out the generated objects and the code version, so neither a
         /// rebuild nor a recompile makes a model look changed.
