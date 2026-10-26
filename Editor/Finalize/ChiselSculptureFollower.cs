@@ -7,6 +7,7 @@ namespace Chisel.Editors
     /// <summary>
     /// Keeps a finalized model where its sculpture is: whenever a sculpture is moved, rotated, scaled or reparented
     /// (by hand, by script or by undo), its model follows (see <see cref="ChiselModelFinalizer.FollowSculpture"/>).
+    /// Renaming a model or its sculpture renames the other (see <see cref="ChiselModelFinalizer.SyncNames"/>).
     /// </summary>
     [InitializeOnLoad]
     static class ChiselSculptureFollower
@@ -40,8 +41,11 @@ namespace Chisel.Editors
                 var gameObject = changed as GameObject;
                 if (!gameObject && changed is Component component)
                     gameObject = component.gameObject;
-                if (gameObject && gameObject.TryGetComponent<ChiselSculptureComponent>(out var sculpture))
+                if (!gameObject)
+                    continue;
+                if (gameObject.TryGetComponent<ChiselSculptureComponent>(out var sculpture))
                     ChiselModelFinalizer.FollowSculpture(sculpture);
+                ChiselModelFinalizer.SyncNames(gameObject);
             }
         }
     }

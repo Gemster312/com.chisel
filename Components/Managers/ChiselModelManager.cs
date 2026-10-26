@@ -597,17 +597,11 @@ namespace Chisel.Components
                 var activeScene = SceneManager.GetActiveScene();
                 Instance.activeModels.TryGetValue(activeScene, out var activeModel);
 
-                // Check if the activeModel is valid & if it's scene actually points to the active Scene
+                // Only a model someone chose (Set Active Model, a new model, Edit Model) is active: when it's gone or
+                // in another scene there is none, and the next shape starts a new model rather than joining another
                 if (ReferenceEquals(activeModel, null) ||
                     !activeModel || activeModel.gameObject.scene != activeScene)
-                {
-                    // If active model is invalid or missing, make another model in this scene the active model
-                    // and use it right away (this used to return null on this call and only use it on the next)
-                    activeModel = FindModelInScene(activeScene);
-                    Instance.activeModels[activeScene] = activeModel;
-                    if (!activeModel)
-                        return null;
-                }
+                    return null;
 
                 // If we have an active model, but it's actually disabled, do not use it
                 // This prevents users from accidentally adding generators to a model that is inactive, 
@@ -744,49 +738,24 @@ namespace Chisel.Components
         {
             // Go through all activeModels, which we store per scene, and make sure they still make sense
 
+            // A scene whose model is gone (deleted, or moved to another scene) is left with none: no other model is
+            // picked in its place (see ActiveModel)
             var removeScenes = ListPool<Scene>.Get();
-            var setSceneModels = DictionaryPool<Scene, ChiselModelComponent>.Get();
             try
             {
                 foreach (var pair in Instance.activeModels)
                 {
-                    // If the scene is no longer loaded, remove it from our list
-                    if (!pair.Key.isLoaded || !pair.Key.IsValid())
-                    {
+                    if (!pair.Key.isLoaded || !pair.Key.IsValid() ||
+                        !pair.Value || pair.Value.gameObject.scene != pair.Key)
                         removeScenes.Add(pair.Key);
-                        continue;   // else it is put back below, with no model
-                    }
-
-                    // Check if a current activeModel still exists
-                    var sceneActiveModel = pair.Value;
-                    if (!sceneActiveModel)
-                    {
-                        setSceneModels[pair.Key] = FindModelInScene(pair.Key);
-                        //Instance.activeModels[pair.Key] = FindModelInScene(pair.Key);
-                        continue;
-                    }
-
-                    // Check if a model has been moved to another scene, and correct this if it has
-                    var gameObjectScene = sceneActiveModel.gameObject.scene;
-                    if (gameObjectScene != pair.Key)
-                    {
-                        setSceneModels[pair.Key] = FindModelInScene(pair.Key);
-                        setSceneModels[gameObjectScene] = FindModelInScene(gameObjectScene);
-                    }
                 }
-
 
                 foreach (var scene in removeScenes)
                     Instance.activeModels.Remove(scene);
-
-
-                foreach (var pair in setSceneModels)
-                    Instance.activeModels[pair.Key] = pair.Value;
             }
             finally
             {
                 ListPool<Scene>.Release(removeScenes);
-                DictionaryPool<Scene, ChiselModelComponent>.Release(setSceneModels);
             }
         }
 
@@ -953,10 +922,7 @@ namespace Chisel.Components
          
         public void OnActiveSceneChanged(Scene _, Scene newScene)
         {
-            if (Instance.activeModels.TryGetValue(newScene, out var activeModel) && IsSelectable(activeModel))
-                return;
-
-            Instance.activeModels[newScene] = FindModelInScene(newScene);
+            // No model is picked for the scene: see ActiveModel
             CheckActiveModels();
         }
 

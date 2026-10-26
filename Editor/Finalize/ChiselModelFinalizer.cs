@@ -154,6 +154,7 @@ namespace Chisel.Editors
             PlaceLike(sculpture.transform, model.transform, kFinalizeUndoName);
             Undo.RecordObject(sculpture, kFinalizeUndoName);
             sculpture.name = SculptureName(model, sculpture.transform);
+            RenameMeshAsset(model, sculpture);
             sculpture.SetActive(true);
             EditorSceneManager.MarkSceneDirty(gameObject.scene);
         }
@@ -179,6 +180,67 @@ namespace Chisel.Editors
                 EditorUtility.SetDirty(model.transform);
                 EditorSceneManager.MarkSceneDirty(model.gameObject.scene);
             }
+        }
+
+        /// <summary>
+        /// Called when a model or sculpture changed (see ChiselSculptureFollower): renaming either one renames the
+        /// other, and the sculpture's mesh asset, so the three keep one name. Not recorded for undo, like
+        /// <see cref="FollowSculpture"/>: undoing the rename renames the other one back.
+        /// </summary>
+        internal static void SyncNames(GameObject renamed)
+        {
+            ChiselModelComponent model;
+            GameObject sculpture;
+            if (renamed.TryGetComponent<ChiselModelComponent>(out model))
+            {
+                sculpture = (model.finalized != null) ? model.finalized.sculpture : null;
+                if (!sculpture)
+                    return;
+            } else if (renamed.TryGetComponent<ChiselSculptureComponent>(out var marker))
+            {
+                model = marker.source;
+                if (!model || model.finalized == null || model.finalized.sculpture != renamed)
+                    return;
+                sculpture = renamed;
+                // Beside its model the sculpture's name is the model's plus the suffix
+                var modelName = sculpture.name;
+                if (sculpture.transform.parent == model.transform.parent && modelName.EndsWith(kSculptureSuffix))
+                    modelName = modelName.Substring(0, modelName.Length - kSculptureSuffix.Length);
+                if (modelName != model.name && modelName.Length > 0)
+                    Rename(model.gameObject, modelName);
+            } else
+                return;
+
+            var sculptureName = SculptureName(model, sculpture.transform);
+            if (sculpture.name != sculptureName)
+                Rename(sculpture, sculptureName);
+            RenameMeshAsset(model, sculpture);
+        }
+
+        static void Rename(GameObject gameObject, string name)
+        {
+            gameObject.name = name;
+            EditorUtility.SetDirty(gameObject);
+            if (gameObject.scene.IsValid())
+                EditorSceneManager.MarkSceneDirty(gameObject.scene);
+        }
+
+        // Renamed after the change events are done (asset changes inside them aren't safe); a name another asset in
+        // the folder already has gets a number
+        static void RenameMeshAsset(ChiselModelComponent model, GameObject sculpture)
+        {
+            var path = FindMeshAssetPath(sculpture);
+            if (path == null || Path.GetFileNameWithoutExtension(path) == model.name)
+                return;
+            EditorApplication.delayCall += () =>
+            {
+                if (!model || FindMeshAssetPath(sculpture) != path)
+                    return;
+                var newPath = AssetDatabase.GenerateUniqueAssetPath($"{Path.GetDirectoryName(path).Replace('\\', '/')}/{model.name}.asset");
+                var error   = AssetDatabase.RenameAsset(path, Path.GetFileNameWithoutExtension(newPath));
+                if (!string.IsNullOrEmpty(error))
+                    Debug.LogWarning($"Couldn't rename the sculpture meshes of {model.name}: {error}", model);
+            };
         }
 
         /// <summary>
