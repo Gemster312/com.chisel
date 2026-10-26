@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Chisel.Components;
@@ -30,9 +31,22 @@ namespace Chisel.Editors
         static Texture2D s_WarningImage;
         static double    s_NextPollTime;
 
+        /// <summary>The icon models get in the hierarchy.</summary>
+        public static Texture ModelIcon => ChiselEditorResources.GetIconContent("csg_model")[0].image;
+
+        /// <summary>The icon sculptures get in the hierarchy (Unity's mesh icon: a sculpture is plain meshes).</summary>
+        public static Texture SculptureIcon => EditorGUIUtility.IconContent("Mesh Icon").image;
+
+        /// <summary>
+        /// Lets a project give its own objects (such as folders) an icon in the hierarchy: null leaves the row as it is.
+        /// Called often for the rows on screen, so keep it cheap.
+        /// </summary>
+        public static Func<GameObject, Texture> CustomIcon;
+
         sealed class RowState
         {
-            public ChiselNodeComponent node;
+            public GameObject          gameObject;
+            public ChiselNodeComponent node; // null for a sculpture or a CustomIcon row
             public Texture             icon;
             public bool                hasWarning;
             public bool                isActiveModel;
@@ -58,17 +72,26 @@ namespace Chisel.Editors
             EditorApplication.update += OnEditorUpdate;
         }
 
+        static GameObject GetGameObject(HierarchyViewItem item)
+        {
+            if (item.Handler is not HierarchyGameObjectHandler handler)
+                return null;
+            return handler.GetGameObject(item.Node);
+        }
+
         static bool TryGetChiselNode(HierarchyViewItem item, out ChiselNodeComponent node)
         {
             node = null;
-            if (item.Handler is not HierarchyGameObjectHandler handler)
-                return false;
+            var gameObject = GetGameObject(item);
+            return gameObject && gameObject.TryGetComponent(out node);
+        }
 
-            var gameObject = handler.GetGameObject(item.Node);
-            if (!gameObject)
-                return false;
-
-            return gameObject.TryGetComponent(out node);
+        // The icon of a row that isn't a Chisel node, or null when it gets none
+        static Texture OtherIcon(GameObject gameObject)
+        {
+            if (gameObject.TryGetComponent<ChiselSculptureComponent>(out _))
+                return SculptureIcon;
+            return CustomIcon?.Invoke(gameObject);
         }
 
         static bool IsActiveModel(ChiselNodeComponent node)
@@ -82,11 +105,22 @@ namespace Chisel.Editors
         // Returns true when anything the row draws has changed since it was last written.
         static bool Evaluate(RowState state)
         {
-            var icon          = ChiselNodeDetailsManager.GetHierarchyIcon(state.node, out bool hasValidState);
-            var image         = icon?.image;
-            var hasWarning    = !hasValidState;
-            var isActiveModel = IsActiveModel(state.node);
-            var isEnabled     = state.node.isActiveAndEnabled;
+            Texture image;
+            bool hasWarning, isActiveModel, isEnabled;
+            if (state.node)
+            {
+                var icon      = ChiselNodeDetailsManager.GetHierarchyIcon(state.node, out bool hasValidState);
+                image         = icon?.image;
+                hasWarning    = !hasValidState;
+                isActiveModel = IsActiveModel(state.node);
+                isEnabled     = state.node.isActiveAndEnabled;
+            } else
+            {
+                image         = OtherIcon(state.gameObject);
+                hasWarning    = false;
+                isActiveModel = false;
+                isEnabled     = state.gameObject.activeInHierarchy;
+            }
 
             if (ReferenceEquals(image, state.icon) &&
                 hasWarning    == state.hasWarning &&
@@ -167,10 +201,14 @@ namespace Chisel.Editors
             ClearDecorations(item);
             s_BoundRows.Remove(item);
 
-            if (!TryGetChiselNode(item, out var node))
+            var gameObject = GetGameObject(item);
+            if (!gameObject)
+                return;
+            gameObject.TryGetComponent<ChiselNodeComponent>(out var node);
+            if (!node && OtherIcon(gameObject) == null)
                 return;
 
-            var state = new RowState { node = node };
+            var state = new RowState { gameObject = gameObject, node = node };
             Evaluate(state);
             Apply(item, state);
             s_BoundRows[item] = state;
@@ -205,7 +243,7 @@ namespace Chisel.Editors
             {
                 // A row that lost its panel was recycled without an unbind; a destroyed node leaves a
                 // state behind. Either way it is no longer ours to draw.
-                if (item.panel == null || !state.node)
+                if (item.panel == null || !state.gameObject || (!ReferenceEquals(state.node, null) && !state.node))
                 {
                     s_Dropped.Add(item);
                     continue;

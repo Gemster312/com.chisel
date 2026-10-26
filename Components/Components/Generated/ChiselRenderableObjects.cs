@@ -486,12 +486,10 @@ namespace Chisel.Components
 
         static ulong BrushEntityID(CompactNodeID brushNodeID)
         {
-            if (brushNodeID == CompactNodeID.Invalid)
+            // Also checks its hierarchy still exists (GetHierarchy throws on one that's gone)
+            if (!CompactHierarchyManager.IsValidCompactNodeID(brushNodeID))
                 return 0;
-            ref var hierarchy = ref CompactHierarchyManager.GetHierarchy(brushNodeID);
-            if (!hierarchy.IsValidCompactNodeID(brushNodeID))
-                return 0;
-            return hierarchy.GetChildRef(brushNodeID).entityID;
+            return CompactHierarchyManager.GetHierarchy(brushNodeID).GetChildRef(brushNodeID).entityID;
         }
 
         public SelectionDescription DescriptionForPicking(ChiselModelComponent model, int index)

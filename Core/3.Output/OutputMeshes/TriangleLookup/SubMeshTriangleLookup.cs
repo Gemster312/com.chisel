@@ -151,8 +151,10 @@ namespace Chisel.Core
 			else
 				managedSubMeshTriangleLookup.perTriangleSelectionIDLookup = Array.Empty<int>();
 
+			// Exactly as long: its readers walk the whole array, so a longer old one would keep stale descriptions (whose
+			// brushes may be in a hierarchy that's gone, e.g. after a model is switched off and on) at its end
 			if (managedSubMeshTriangleLookup.selectionIndexDescriptions == null ||
-				managedSubMeshTriangleLookup.selectionIndexDescriptions.Length < selectionIndexDescriptions.Length)
+				managedSubMeshTriangleLookup.selectionIndexDescriptions.Length != selectionIndexDescriptions.Length)
 				managedSubMeshTriangleLookup.selectionIndexDescriptions = new SelectionDescription[selectionIndexDescriptions.Length];
 			if (managedSubMeshTriangleLookup.selectionIndexDescriptions.Length > 0)
 				selectionIndexDescriptions.CopyTo(managedSubMeshTriangleLookup.selectionIndexDescriptions, selectionIndexDescriptions.Length);
