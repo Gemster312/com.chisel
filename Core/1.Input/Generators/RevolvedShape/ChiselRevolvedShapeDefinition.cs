@@ -82,7 +82,7 @@ namespace Chisel.Core
 
         #region Surfaces
         [BurstDiscard]
-        public int RequiredSurfaceCount { get { return 6; } }
+        public int RequiredSurfaceCount { get { return 2 + (curveBlob.IsCreated ? curveBlob.Value.controlPoints.Length : 4); } }
 
         [BurstDiscard]
         public void UpdateSurfaces(ref ChiselSurfaceArray surfaceDefinition) { }
@@ -129,7 +129,10 @@ namespace Chisel.Core
             base.Reset();
         }
 
-        public override bool Validate() 
+        // 2 caps + one side per control point (the brush factory gives each side surface "control point + 2"), as Extruded Shape
+        public override int RequiredSurfaceCount { get { return 2 + shape.controlPoints.Length; } }
+
+        public override bool Validate()
         {
             shape ??= DefaultShape;
             return base.Validate(); 

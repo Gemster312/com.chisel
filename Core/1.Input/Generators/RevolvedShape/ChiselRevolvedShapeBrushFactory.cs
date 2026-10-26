@@ -25,9 +25,10 @@ namespace Chisel.Core
                     if (x < -kEpsilon) { negativeSide++; if (positiveSide > 0) break; }
                     if (x >  kEpsilon) { positiveSide++; if (negativeSide > 0) break; }
                 }
+                // Only pieces that cross the axis are split; the others stay as they are (this used to stop at the first one)
                 if (negativeSide == 0 ||
                     positiveSide == 0)
-                    return;
+                    continue;
 
 				using var polygon = new NativeList<SegmentVertex>(Allocator.Temp);
 				for (int a = end - 1, b = start; b < end; a = b, b++)
@@ -69,8 +70,10 @@ namespace Chisel.Core
 				polygonVerticesList.RemoveRange(start, (end - start));
 				polygonVerticesSegments.RemoveAt(r);
 				var delta = end - start;
-				for (; r < polygonVerticesSegments.Length; r++)
-					polygonVerticesSegments[r] -= delta;
+				// Own index: moving r would make the outer loop revisit pieces it already checked. The two halves go on the end,
+				// past every piece still to check
+				for (int n = r; n < polygonVerticesSegments.Length; n++)
+					polygonVerticesSegments[n] -= delta;
 
 				const float kAxisCenter = 0.0f;
 
