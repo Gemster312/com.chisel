@@ -300,7 +300,7 @@ namespace Chisel.Core
                     settings.bounds = bounds;
 
                 var min			= math.min(bounds.Min, bounds.Max);
-                var max			= math.min(bounds.Min, bounds.Max);
+                var max			= math.max(bounds.Min, bounds.Max);
 
                 var size        = (max - min);
 

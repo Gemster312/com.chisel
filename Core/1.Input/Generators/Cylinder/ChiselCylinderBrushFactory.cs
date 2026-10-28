@@ -292,7 +292,7 @@ namespace Chisel.Core
             {
                 var vert = (float3)vertices[v];
                 min = math.min(min, vert.xz);
-                max = math.min(max, vert.xz);
+                max = math.max(max, vert.xz);
             }
 
             var expectedSize = new float2(diameterX, diameterZ);
