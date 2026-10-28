@@ -20,6 +20,10 @@ namespace Chisel.Editors
                 ChiselEditorSettings.Save();
             }
 
+            // Fork: Chisel snaps by DefaultGrid.Spacing, which only the snapping overlay set (and only while it's drawn). After
+            // a domain reload it fell back to 1 while the overlay showed Unity's grid size, so follow Unity's grid size here
+            Chisel.Editors.Grid.DefaultGrid.Spacing = EditorSnapSettings.gridSize;
+
             var sceneViewGrids = kSceneViewGridsProperty?.GetValue(sceneView);
             GridRenderer.Opacity = kGridOpacityProperty?.GetValue(sceneViewGrids) ?? 1.0f;
 

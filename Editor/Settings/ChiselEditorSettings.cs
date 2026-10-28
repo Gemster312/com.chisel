@@ -31,7 +31,8 @@ namespace Chisel.Editors
         public static bool				MoveSnapping	{ get { return BoundsSnapping || PivotSnapping; } }
         public static bool				BoundsSnapping  { get { return Snapping.BoundsSnappingEnabled; } set { Snapping.BoundsSnappingEnabled = value; } }
         public static bool				PivotSnapping   { get { return Snapping.PivotSnappingEnabled; } set { Snapping.PivotSnappingEnabled = value; } }
-        public static float				UniformSnapSize { get { return EditorSnapSettings.gridSize.x; } set { Grid.DefaultGrid.Spacing = EditorSnapSettings.gridSize = new UnityEngine.Vector3(value, value, value); } }
+        // Fork: also sets Unity's own move increment (Ctrl+drag with the Move tool), so both snap by the same step
+        public static float				UniformSnapSize { get { return EditorSnapSettings.gridSize.x; } set { Grid.DefaultGrid.Spacing = EditorSnapSettings.gridSize = EditorSnapSettings.move = new UnityEngine.Vector3(value, value, value); } }
 
         public static bool				ShowAllAxi      { get; set; } = false;
         public static DistanceUnit		DistanceUnit	{ get; set; } = DistanceUnit.Meters;
@@ -51,9 +52,10 @@ namespace Chisel.Editors
 
         public static void Load()
         {
-            AxisLockX		= EditorPrefs.GetBool ("LockAxisX",			false);
-            AxisLockY		= EditorPrefs.GetBool ("LockAxisY",			false);
-            AxisLockZ		= EditorPrefs.GetBool ("LockAxisZ",			false);
+            // Fork: axis locks always start off (they were saved and restored, and nothing in the UI shows or clears them)
+            AxisLockX		= false;
+            AxisLockY		= false;
+            AxisLockZ		= false;
 
             BoundsSnapping	= EditorPrefs.GetBool ("BoundsSnapping",	true);
             PivotSnapping	= EditorPrefs.GetBool ("PivotSnapping",		false);
@@ -89,10 +91,6 @@ namespace Chisel.Editors
 
         public static void Save()
         {
-            EditorPrefs.SetBool("LockAxisX",		AxisLockX);
-            EditorPrefs.SetBool("LockAxisY",		AxisLockY);
-            EditorPrefs.SetBool("LockAxisZ",		AxisLockZ);
-
             EditorPrefs.SetBool("BoundsSnapping",	BoundsSnapping);
             EditorPrefs.SetBool("PivotSnapping",	PivotSnapping);
             EditorPrefs.SetBool("UniformGrid",		!ShowAllAxi);
