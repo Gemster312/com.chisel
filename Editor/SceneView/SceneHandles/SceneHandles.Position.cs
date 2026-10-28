@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using Chisel.Core;
-using Chisel.Components;
 
 namespace Chisel.Editors
 {
@@ -218,7 +217,7 @@ namespace Chisel.Editors
                     if (GUIUtility.hotControl != centerId)
                         break;
                     // Fork: Ctrl+Shift drags it onto the surface under the mouse, like Unity's own Move tool
-                    if (EditorGUI.actionKey && evt.shift && RaycastSurface(evt.mousePosition, out var surfacePoint, out var surfaceNormal))
+                    if (EditorGUI.actionKey && evt.shift && SurfaceQuery.Raycast(UnityEditor.HandleUtility.GUIPointToWorldRay(evt.mousePosition), Camera.current ? Camera.current.farClipPlane : 10000f, out var surfacePoint, out var surfaceNormal))
                     {
                         var delta = PlaceOnSurface(surfacePoint, surfaceNormal) - position;
                         if (delta.sqrMagnitude > 0)
@@ -348,8 +347,6 @@ namespace Chisel.Editors
 
 
         readonly static List<Vector3> s_DragCorners = new();
-        readonly static List<ChiselIntersection> s_SurfaceIntersections = new();
-
         // Fork: where the handle goes for its bounds (the corners) to rest on a surface: its lowest corner against the normal
         // touches the surface at point (with no bounds, the handle itself does)
         static Vector3 PlaceOnSurface(Vector3 point, Vector3 normal)
@@ -358,55 +355,6 @@ namespace Chisel.Editors
             foreach (var corner in s_DragCorners)
                 lowest = Mathf.Min(lowest, Vector3.Dot(corner, normal));
             return point - normal * lowest;
-        }
-
-        // Fork: the nearest surface under the GUI point that isn't part of the selection: Chisel models through Chisel's own
-        // query (a selected generator's faces are in its model's mesh, so the model's colliders can't leave them out), and
-        // anything else with a collider (sculptures, props) through physics
-        static bool RaycastSurface(Vector2 guiPoint, out Vector3 point, out Vector3 normal)
-        {
-            var ray = UnityEditor.HandleUtility.GUIPointToWorldRay(guiPoint);
-            var camera = Camera.current;
-            var far = camera ? camera.farClipPlane : 10000f;
-            var selected = Selection.gameObjects;
-            var nearest = float.PositiveInfinity;
-            point = normal = default;
-
-            s_SurfaceIntersections.Clear();
-            if (ChiselSceneQuery.FindFirstWorldIntersection(s_SurfaceIntersections, ray.origin, ray.origin + ray.direction * far, ignoreBackfaced: true, ignore: selected))
-            {
-                foreach (var intersection in s_SurfaceIntersections)
-                {
-                    var distance = Vector3.Dot(intersection.worldPlaneIntersection - ray.origin, ray.direction);
-                    if (distance < 0 || distance >= nearest)
-                        continue;
-                    nearest = distance;
-                    point = intersection.worldPlaneIntersection;
-                    normal = intersection.worldPlane.normal;
-                }
-            }
-
-            foreach (var hit in Physics.RaycastAll(ray, far, Physics.AllLayers, QueryTriggerInteraction.Ignore))
-            {
-                if (hit.distance >= nearest ||
-                    hit.collider.GetComponentInParent<ChiselModelComponent>(true) ||
-                    IsSelected(hit.transform, selected))
-                    continue;
-                nearest = hit.distance;
-                point = hit.point;
-                normal = hit.normal;
-            }
-            return !float.IsPositiveInfinity(nearest);
-        }
-
-        static bool IsSelected(Transform transform, GameObject[] selected)
-        {
-            foreach (var gameObject in selected)
-            {
-                if (gameObject && transform.IsChildOf(gameObject.transform))
-                    return true;
-            }
-            return false;
         }
 
         readonly static Vector3[] s_PositionHandleArray = new Vector3[1];

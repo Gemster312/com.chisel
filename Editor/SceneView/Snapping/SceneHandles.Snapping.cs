@@ -711,6 +711,12 @@ namespace Chisel.Editors
 
         public SnapResult1D		SnapResult				{ get { return snapResult; } }
 
+        // Fork: where the slide line meets nearby surfaces facing along it (see SurfaceQuery.FindLevels), found when the drag
+        // starts; the handle (or its points' extents, when given) stops level with them when it comes within kLevelSnap
+        readonly List<Vector3>	surfaceLevels = new();
+        bool					haveExtents;
+        const float				kLevelSnap = 0.2f;     // Of the handle size: about 16 pixels at any zoom
+
 
         public void Initialize(Vector2 currentMousePosition, Vector3 slideStart, Vector3 slideDirection, float snappingStep, Axis axis)
         {
@@ -734,6 +740,11 @@ namespace Chisel.Editors
             this.snapResult			= SnapResult1D.None;
             this.min = slideStart + SnappingUtility.DistanceToWorldPoint (slideExtents.min, slideDirection);
             this.max = slideStart + SnappingUtility.DistanceToWorldPoint (slideExtents.max, slideDirection);
+
+            this.haveExtents = false;
+            this.surfaceLevels.Clear();
+            if (Snapping.SurfaceSnappingActive && Snapping.FindCustomSnappingPointsRayMethod == null)
+                SurfaceQuery.FindLevels(slideStart, slideDirection, this.surfaceLevels);
         }
         
         static Extents1D GetExtentsOfPointArray(Matrix4x4 matrix, Vector3[] points, Vector3 slideOrigin, Vector3 slideDirection)
@@ -755,6 +766,7 @@ namespace Chisel.Editors
         public void CalculateExtents(Matrix4x4 matrix, Vector3[] points)
         {
             this.slideExtents = GetExtentsOfPointArray(matrix, points, this.slideOrigin, this.slideDirection);
+            this.haveExtents = true;
         }
         
         readonly static List<Vector3>       s_CustomSnapPoints    = new List<Vector3>();
@@ -769,8 +781,14 @@ namespace Chisel.Editors
 
             // Get custom snapping positions along the ray
             var haveCustomSnapping = Snapping.GetCustomSnappingPoints(this.slideOffset + slidePosition, this.slideDirection, 0, s_CustomSnapPoints);
-            if (!boundsActive && !pivotActive && !haveCustomSnapping)
+            var haveLevels = this.surfaceLevels.Count > 0;
+            if (!boundsActive && !pivotActive && !haveCustomSnapping && !haveLevels)
                 return currentPosition;
+
+            // Fork: the custom points are in world space, but they're compared with distances from slideOrigin (off the
+            // world's origin in Local handle mode, where the grid's centre is the parent's position)
+            for (int i = 0; i < s_CustomSnapPoints.Count; i++)
+                s_CustomSnapPoints[i] -= this.slideOrigin;
 
 
             const float kMinPointSnap = 0.25f;
@@ -812,6 +830,30 @@ namespace Chisel.Editors
             {
                 (float abs_distance, float snappedOffset) = Snapping.SnapCustom(s_CustomSnapPoints, this.startOffset + distanceToOrigin, this.slideDirection, minPointSnap, s_CustomDistances);
                 if (snappedOffsetAbsDistance > abs_distance) { snappedOffsetAbsDistance = abs_distance; snappedOffsetDistance = snappedOffset; }
+            }
+
+            // Fork: a nearby surface level wins over the grid while the handle (or its extents) is within kLevelSnap of it
+            if (haveLevels)
+            {
+                var range = Camera.current ? UnityEditor.HandleUtility.GetHandleSize(WorldPosition) * kLevelSnap : 0.25f;
+                var pivot = this.startOffset + distanceToOrigin;
+                var nearestLevel = float.PositiveInfinity;
+                foreach (var level in this.surfaceLevels)
+                {
+                    var levelDistance = SnappingUtility.WorldPointToDistance(level, this.slideDirection, this.slideOrigin);
+                    if (Mathf.Abs(pivot - levelDistance) < Mathf.Abs(nearestLevel)) nearestLevel = pivot - levelDistance;
+                    if (!this.haveExtents)
+                        continue;
+                    var extentsMin = this.slideExtents.min + distanceToOrigin - levelDistance;
+                    var extentsMax = this.slideExtents.max + distanceToOrigin - levelDistance;
+                    if (Mathf.Abs(extentsMin) < Mathf.Abs(nearestLevel)) nearestLevel = extentsMin;
+                    if (Mathf.Abs(extentsMax) < Mathf.Abs(nearestLevel)) nearestLevel = extentsMax;
+                }
+                if (Mathf.Abs(nearestLevel) <= range)
+                {
+                    snappedOffsetDistance = nearestLevel;
+                    snappedOffsetAbsDistance = Mathf.Abs(nearestLevel);
+                }
             }
 
             // If we didn't actually snap, just return the actual unsnapped position
