@@ -7,7 +7,9 @@ namespace Chisel.Components
     /// sculpture is what ships; the model it was made from stays in the scene, inactive and tagged EditorOnly, so it can
     /// be edited and finalized again.
     /// </summary>
-    [DisallowMultipleComponent, AddComponentMenu("")]
+    // SelectionBase: a Scene view click on one of its meshes selects the sculpture (a second click the mesh), so moving
+    // it moves the renderers and colliders together
+    [DisallowMultipleComponent, AddComponentMenu(""), SelectionBase]
     [Icon(ChiselNodeComponent.kIconBasePath + "csg_model" + ChiselNodeComponent.kIconExtension)]
     public sealed class ChiselSculptureComponent : MonoBehaviour
     {
