@@ -260,48 +260,50 @@ namespace Chisel.Editors
             var yzPlaneColor	= SceneHandles.StateColor(SceneHandles.XAxisColor, yzPlaneDisabled, yzPlaneSelected);
 
 
+            // Fork: clicking an arrow or plane without dragging no longer locks the other axes (selectLockingAxisOnClick):
+            // nothing showed the lock, and it darkened and disabled those sides of every generator's handles
             var prevDisabled = SceneHandles.Disabled;
 
             if (!xAxisLocked)
             {
                 SceneHandles.Disabled = xAxisDisabled;
                 SceneHandles.Color = xAxisColor;
-                points = Slider1DHandle(xAxisId, Axis.X, points, position, rotation * Vector3.right, Snapping.MoveSnappingSteps.x, handleSize, ArrowHandleCap, selectLockingAxisOnClick: true);
+                points = Slider1DHandle(xAxisId, Axis.X, points, position, rotation * Vector3.right, Snapping.MoveSnappingSteps.x, handleSize, ArrowHandleCap);
             }
 
             if (!yAxisLocked)
             {
                 SceneHandles.Disabled = yAxisDisabled;
                 SceneHandles.Color = yAxisColor;
-                points = Slider1DHandle(yAxisId, Axis.Y, points, position, rotation * Vector3.up, Snapping.MoveSnappingSteps.y, handleSize, ArrowHandleCap, selectLockingAxisOnClick: true);
+                points = Slider1DHandle(yAxisId, Axis.Y, points, position, rotation * Vector3.up, Snapping.MoveSnappingSteps.y, handleSize, ArrowHandleCap);
             }
 
             if (!zAxisLocked)
             {
                 SceneHandles.Disabled = zAxisDisabled;
                 SceneHandles.Color = zAxisColor;
-                points = Slider1DHandle(zAxisId, Axis.Z, points, position, rotation * Vector3.forward, Snapping.MoveSnappingSteps.z, handleSize, ArrowHandleCap, selectLockingAxisOnClick: true);
+                points = Slider1DHandle(zAxisId, Axis.Z, points, position, rotation * Vector3.forward, Snapping.MoveSnappingSteps.z, handleSize, ArrowHandleCap);
             }
 
             if (!xzPlaneLocked)
             {
                 SceneHandles.Disabled = xzPlaneDisabled;
                 SceneHandles.Color = xzPlaneColor;
-                points = PlanarHandle(xzPlaneId, PlaneAxes.XZ, points, position, rotation, handleSize * 0.3f, selectLockingAxisOnClick: true);
+                points = PlanarHandle(xzPlaneId, PlaneAxes.XZ, points, position, rotation, handleSize * 0.3f);
             }
 
             if (!xyPlaneLocked)
             {
                 SceneHandles.Disabled = xyPlaneDisabled;
                 SceneHandles.Color = xyPlaneColor;
-                points = PlanarHandle(xyPlaneId, PlaneAxes.XY, points, position, rotation, handleSize * 0.3f, selectLockingAxisOnClick: true);
+                points = PlanarHandle(xyPlaneId, PlaneAxes.XY, points, position, rotation, handleSize * 0.3f);
             }
 
             if (!yzPlaneLocked)
             {
                 SceneHandles.Disabled = yzPlaneDisabled;
                 SceneHandles.Color = yzPlaneColor;
-                points = PlanarHandle(yzPlaneId, PlaneAxes.YZ, points, position, rotation, handleSize * 0.3f, selectLockingAxisOnClick: true);
+                points = PlanarHandle(yzPlaneId, PlaneAxes.YZ, points, position, rotation, handleSize * 0.3f);
             }
 
 
