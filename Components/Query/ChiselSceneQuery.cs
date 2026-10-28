@@ -97,10 +97,11 @@ namespace Chisel.Components
 					var query = ChiselSceneQuery.GetMeshQuery(model);
 					var visibleQueries = ChiselSceneQuery.GetVisibleQueries(query, visibleLayerFlags);
 
-					// We only accept RayCasts into this model if it's visible
+					// We only accept RayCasts into this model if it's visible (fork: skip it; this returned false, ending the search
+					// and dropping what other models had found)
 					if (visibleQueries == null ||
 						visibleQueries.Length == 0)
-						return false;
+						continue;
 
 					Vector3 treeRayStart;
 					Vector3 treeRayEnd;
