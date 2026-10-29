@@ -184,6 +184,12 @@ namespace Chisel.Core
                     }
                 }
 
+                if (DoRingSizeHandles(handles, ref pathPoint, currMatrix))
+                {
+                    path.segments[i] = pathPoint;
+                    path = new ChiselPath(path);
+                }
+
 
                 // Draw lines between different segments
                 if (i + 1 < path.segments.Length)
@@ -235,6 +241,64 @@ namespace Chisel.Core
             }
 
             // TODO: draw curved path
+        }
+
+        const float kRingHandleOffset = 0.15f;
+
+        // Width and height handles for one ring (path point): they slide along the outline's x and y and set the point's scale,
+        // which scales the outline around its origin. They sit on the lines through the outline's right and top extents, just
+        // past its top right corner, so they never cover a control point and grid snapping lands the extent itself. Shift
+        // keeps the ring's proportions
+        bool DoRingSizeHandles(IChiselHandles handles, ref ChiselPathPoint pathPoint, Matrix4x4 ringMatrix)
+        {
+            var controlPoints = shape.controlPoints;
+            if (controlPoints == null || controlPoints.Length < 3)
+                return false;
+
+            Vector2 min = controlPoints[0].position, max = min;
+            for (int c = 1; c < controlPoints.Length; c++)
+            {
+                min = Vector2.Min(min, controlPoints[c].position);
+                max = Vector2.Max(max, controlPoints[c].position);
+            }
+            var size = max - min;
+
+            var origin = ringMatrix.MultiplyPoint(Vector3.zero);
+            var xAxis  = ringMatrix.MultiplyVector(Vector3.right).normalized;
+            var yAxis  = ringMatrix.MultiplyVector(Vector3.up).normalized;
+            var scale  = pathPoint.scale;
+            bool changed = false;
+
+            if (max.x > 0.001f && scale.x > 0)
+            {
+                var position = ringMatrix.MultiplyPoint(new Vector3(max.x, max.y + size.y * kRingHandleOffset, 0));
+                if (handles.DoDirectionHandle(ref position, xAxis))
+                {
+                    var newX = Mathf.Max(0.01f, Vector3.Dot(position - origin, xAxis) / max.x);
+                    if (Event.current != null && Event.current.shift)
+                        scale.y *= newX / scale.x;
+                    scale.x = newX;
+                    changed = true;
+                }
+            }
+
+            if (max.y > 0.001f && scale.y > 0)
+            {
+                var position = ringMatrix.MultiplyPoint(new Vector3(max.x + size.x * kRingHandleOffset, max.y, 0));
+                if (handles.DoDirectionHandle(ref position, yAxis))
+                {
+                    var newY = Mathf.Max(0.01f, Vector3.Dot(position - origin, yAxis) / max.y);
+                    if (Event.current != null && Event.current.shift)
+                        scale.x *= newY / scale.y;
+                    scale.y = newY;
+                    changed = true;
+                }
+            }
+
+            if (!changed)
+                return false;
+            pathPoint.scale = scale;
+            return true;
         }
         #endregion
     }
