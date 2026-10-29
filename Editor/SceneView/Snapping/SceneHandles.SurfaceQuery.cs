@@ -12,7 +12,9 @@ namespace Chisel.Editors
     internal static class SurfaceQuery
     {
         const float kLevelRange = 25.0f;                    // How far along the slide line levels are looked for, either way
-        readonly static float[] kLevelRadii = { 0.0f, 0.75f, 2.0f };   // Out from the line: a floor beside the stairs' top still counts
+        const float kLevelMargin = 2.0f;                    // How far past the selection's footprint levels are looked for
+        const float kLevelSpacing = 0.5f;                   // Closest spacing of the lines cast across the footprint
+        const int   kLevelMaxLines = 12;                    // Most lines cast across each side of the footprint
         const float kLevelFacing = 0.95f;                   // How square to the slide line a surface must face to be a level
 
         struct Hit
@@ -43,7 +45,9 @@ namespace Chisel.Editors
         }
 
         // Points on the line through linePoint where it meets the planes of surfaces facing along it (floors and ceilings
-        // for an upright line), found on and around the line, so a handle slid along it can stop level with them
+        // for an upright line), so a handle slid along it can stop level with them. Lines parallel to it are cast across
+        // the selection's footprint and kLevelMargin past it: a handle in the middle of a wide top face still finds the
+        // floor beside the selection
         public static void FindLevels(Vector3 linePoint, Vector3 direction, List<Vector3> levels)
         {
             levels.Clear();
@@ -53,13 +57,29 @@ namespace Chisel.Editors
             var side = Vector3.Cross(direction, Mathf.Abs(direction.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
             var other = Vector3.Cross(direction, side);
 
+            // The footprint across the line, as ranges along side and other measured from linePoint
+            var area = new Bounds(linePoint, Vector3.zero);
+            if (TryGetSelectionBounds(out var selectionBounds))
+                area.Encapsulate(selectionBounds);
+            area.Expand(kLevelMargin * 2);
+            var centre = area.center - linePoint;
+            var sideCentre  = Vector3.Dot(centre, side);
+            var otherCentre = Vector3.Dot(centre, other);
+            var sideHalf  = Vector3.Dot(area.extents, new Vector3(Mathf.Abs(side.x),  Mathf.Abs(side.y),  Mathf.Abs(side.z)));
+            var otherHalf = Vector3.Dot(area.extents, new Vector3(Mathf.Abs(other.x), Mathf.Abs(other.y), Mathf.Abs(other.z)));
+            var sideCount  = Mathf.Clamp(Mathf.CeilToInt(sideHalf  * 2 / kLevelSpacing) + 1, 2, kLevelMaxLines);
+            var otherCount = Mathf.Clamp(Mathf.CeilToInt(otherHalf * 2 / kLevelSpacing) + 1, 2, kLevelMaxLines);
+
             s_Hits.Clear();
-            foreach (var radius in kLevelRadii)
+            FindHits(linePoint - direction * kLevelRange, linePoint + direction * kLevelRange, true, s_Hits);
+            for (int i = 0; i < sideCount; i++)
             {
-                for (int i = 0; i < (radius == 0 ? 1 : 4); i++)
+                var sideOffset = sideCentre - sideHalf + sideHalf * 2 * i / (sideCount - 1);
+                for (int j = 0; j < otherCount; j++)
                 {
-                    var offset = (i == 0 ? side : i == 1 ? -side : i == 2 ? other : -other) * radius;
-                    FindHits(linePoint + offset - direction * kLevelRange, linePoint + offset + direction * kLevelRange, true, s_Hits);
+                    var otherOffset = otherCentre - otherHalf + otherHalf * 2 * j / (otherCount - 1);
+                    var point = linePoint + side * sideOffset + other * otherOffset;
+                    FindHits(point - direction * kLevelRange, point + direction * kLevelRange, true, s_Hits);
                 }
             }
 
@@ -75,6 +95,31 @@ namespace Chisel.Editors
                 }
                 if (!known)
                     levels.Add(level);
+            }
+        }
+
+        // World bounds of the selected Chisel nodes and renderers
+        static bool TryGetSelectionBounds(out Bounds bounds)
+        {
+            bounds = default;
+            var found = false;
+            foreach (var gameObject in Selection.gameObjects)
+            {
+                if (!gameObject)
+                    continue;
+                foreach (var node in gameObject.GetComponentsInChildren<ChiselNodeComponent>())
+                    Add(node.hierarchyItem?.Bounds ?? default, ref bounds, ref found);
+                foreach (var renderer in gameObject.GetComponentsInChildren<Renderer>())
+                    Add(renderer.bounds, ref bounds, ref found);
+            }
+            return found;
+
+            static void Add(Bounds add, ref Bounds bounds, ref bool found)
+            {
+                if (add.size.sqrMagnitude == 0 || float.IsInfinity(add.size.sqrMagnitude))
+                    return;
+                if (found) bounds.Encapsulate(add); else bounds = add;
+                found = true;
             }
         }
 

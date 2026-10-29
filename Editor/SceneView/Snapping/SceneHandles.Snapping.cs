@@ -746,7 +746,7 @@ namespace Chisel.Editors
             if (Snapping.SurfaceSnappingActive && Snapping.FindCustomSnappingPointsRayMethod == null)
                 SurfaceQuery.FindLevels(slideStart, slideDirection, this.surfaceLevels);
         }
-        
+
         static Extents1D GetExtentsOfPointArray(Matrix4x4 matrix, Vector3[] points, Vector3 slideOrigin, Vector3 slideDirection)
         {
             var transformedDirection = matrix.MultiplyVector(slideDirection);
