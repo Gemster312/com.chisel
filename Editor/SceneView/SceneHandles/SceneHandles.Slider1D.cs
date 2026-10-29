@@ -111,7 +111,9 @@ namespace Chisel.Editors
             try
             {
                 pointArray[0] = handleOrigin;
-                return Slider1D.Do(id, axis, pointArray, handleOrigin, handleDirection, snappingStep, handleSize, capFunction, selectLockingAxisOnClick)[0];
+                // Fork: pass the count, a rented array is often longer than asked for and its unused (zero) entries were
+                // snapped too, as if the object's own origin moved with the handle, landing the handle off the grid
+                return Slider1D.Do(id, axis, pointArray, 1, handleOrigin, handleDirection, handleDirection, snappingStep, handleSize, capFunction, selectLockingAxisOnClick)[0];
             }
             finally
 			{
