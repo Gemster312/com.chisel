@@ -111,6 +111,10 @@ namespace Chisel.Core
         public Curve2D                  shape;
         public ChiselPath               path;
 
+        // Fork: width and height handles on each end (path point) in the scene; editor only, the shape doesn't change
+        [Tooltip("Shows a width and a height handle on each end of the path in the Scene view, to resize that end.")]
+        public bool                     ringSizeHandles;
+
         //[NamedItems(overflow = "Surface {0}")]
         //public ChiselSurfaceDefinition  surfaceDefinition;
 
@@ -184,7 +188,7 @@ namespace Chisel.Core
                     }
                 }
 
-                if (DoRingSizeHandles(handles, ref pathPoint, currMatrix))
+                if (ringSizeHandles && DoRingSizeHandles(handles, ref pathPoint, currMatrix))
                 {
                     path.segments[i] = pathPoint;
                     path = new ChiselPath(path);
