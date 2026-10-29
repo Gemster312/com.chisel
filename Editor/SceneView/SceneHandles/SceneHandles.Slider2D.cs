@@ -157,11 +157,13 @@ namespace Chisel.Editors
 
                         var pointDelta			= handleInverseMatrix.MultiplyVector(localPointDelta);
 
-                        if (axes != Axes.None)
+                        // Fork: drop only the movement along the handle's normal. Zeroing the handle space's x/y/z (the old
+                        // code) is wrong for a turned handle (e.g. an Extruded Shape's, whose z points up): a plane not
+                        // aligned with those axes lost a second direction and moved along one axis only
+                        if (axes != Axes.None && handleNormal.sqrMagnitude > 0)
                         {
-                            if ((axes & Axes.X) == Axes.None) pointDelta.x = 0;
-                            if ((axes & Axes.Y) == Axes.None) pointDelta.y = 0;
-                            if ((axes & Axes.Z) == Axes.None) pointDelta.z = 0;
+                            var normal = handleNormal.normalized;
+                            pointDelta -= normal * Vector3.Dot(pointDelta, normal);
                         }
 
                         if (s_StartPoints != null)
