@@ -120,12 +120,15 @@ namespace Chisel.Core
             var middle      = settings.radius * 0.25f;
             var frontPoint  = new Vector3(middle, middle,  halfLength);
             var backPoint   = new Vector3(middle, middle, -halfLength);
+            // The radius: where the curve meets the bottom face
+            var radiusPoint = new Vector3(settings.radius, 0, 0);
 
-            ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward);
-            ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back);
-
-            if (handles.modified)
-                settings.length = math.max(0, frontPoint.z - backPoint.z);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward))
+                settings.length = math.max(0, frontPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back))
+                settings.length = math.max(0, -backPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref radiusPoint, Vector3.right))
+                settings.radius = math.max(ChiselFillet.kMinSize, radiusPoint.x);
         }
         #endregion
     }

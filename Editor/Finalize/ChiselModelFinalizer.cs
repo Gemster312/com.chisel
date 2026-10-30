@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using Chisel.Components;
+using Chisel.Core;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -370,6 +371,8 @@ namespace Chisel.Editors
                 sources.Add(collider.sharedMesh);
                 names.Add(colliders.Count == 1 ? "Collider" : $"Collider {colliders.Count}");
             }
+            if (renderables.Count == 0 && colliders.Count == 0)
+                WarnNoGeometry(model);
 
             var record = model.finalized;
             var meshes = SaveMeshes(model, (record != null) ? record.sculpture : null, sources, names);
@@ -446,6 +449,23 @@ namespace Chisel.Editors
             Undo.RecordObject(marker, kFinalizeUndoName);
             marker.source = model;
             return sculpture;
+        }
+
+        // Fork: a sculpture with no mesh and no collider is almost always a mistake, most often a model whose shapes are all
+        // Subtractive or Intersecting: those only change what Additive shapes make, so alone they make nothing. Still finalized
+        static void WarnNoGeometry(ChiselModelComponent model)
+        {
+            var generators = model.GetComponentsInChildren<ChiselGeneratorComponent>(includeInactive: false);
+            var additive = 0;
+            foreach (var generator in generators)
+            {
+                if (generator.isActiveAndEnabled && generator.Operation == CSGOperationType.Additive)
+                    additive++;
+            }
+            var reason = generators.Length == 0 ? "it has no shapes"
+                       : additive == 0         ? "none of its shapes are Additive (Subtractive and Intersecting shapes only change what Additive ones make)"
+                                               : "its shapes leave nothing (check what the Subtractive ones cut away)";
+            Debug.LogWarning($"Finalized {model.name} with no mesh or collider: {reason}.", model);
         }
 
         // A child of the sculpture at its origin, with the layer and static flags Chisel gave the generated object it copies

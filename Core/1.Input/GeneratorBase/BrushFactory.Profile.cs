@@ -147,14 +147,16 @@ namespace Chisel.Core
         }
     }
 
-    // Fork: the face handles the profile generators share: an arrow on a face that drags it along its normal
+    // Fork: the face handles the profile generators share: an arrow on a face that drags it along its normal. True when it
+    // was dragged, so only that handle's setting changes (recomputing the others from their unmoved points would drift)
     public static class ChiselProfileHandles
     {
-        public static void DoFaceHandle(IChiselHandles handles, ref UnityEngine.Vector3 point, UnityEngine.Vector3 normal)
+        public static bool DoFaceHandle(IChiselHandles handles, ref UnityEngine.Vector3 point, UnityEngine.Vector3 normal)
         {
             handles.backfaced = handles.IsSufaceBackFaced(point, normal);
-            handles.DoDirectionHandle(ref point, normal);
+            var moved = handles.DoDirectionHandle(ref point, normal);
             handles.backfaced = false;
+            return moved;
         }
     }
 }

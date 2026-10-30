@@ -161,18 +161,37 @@ namespace Chisel.Core
             var leftPoint   = new Vector3(-halfWidth, middle, 0);
             var topPoint    = new Vector3(0, settings.height, 0);
 
-            ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward);
-            ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back);
-            ChiselProfileHandles.DoFaceHandle(handles, ref rightPoint, Vector3.right);
-            ChiselProfileHandles.DoFaceHandle(handles, ref leftPoint, Vector3.left);
-            ChiselProfileHandles.DoFaceHandle(handles, ref topPoint, Vector3.up);
-
-            if (handles.modified)
-            {
-                settings.length = math.max(0, frontPoint.z - backPoint.z);
-                settings.width  = math.max(0, rightPoint.x - leftPoint.x);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward))
+                settings.length = math.max(0, frontPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back))
+                settings.length = math.max(0, -backPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref rightPoint, Vector3.right))
+                settings.width = math.max(0, rightPoint.x * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref leftPoint, Vector3.left))
+                settings.width = math.max(0, -leftPoint.x * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref topPoint, Vector3.up))
                 settings.height = math.max(0, topPoint.y);
-            }
+
+            // The radius: on the flat face beside the first rounded corner, where the rounding starts, dragged towards the
+            // face's middle to round more
+            if (!FirstRoundedCorner(out var side, out var top))
+                return;
+            var radiusPoint = new Vector3(side * (halfWidth - settings.radius), top ? settings.height : 0, 0);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref radiusPoint, new Vector3(-side, 0, 0)))
+                settings.radius = math.max(0, halfWidth - side * radiusPoint.x);
+        }
+
+        // side: +1 right, -1 left
+        bool FirstRoundedCorner(out float side, out bool top)
+        {
+            side = 1; top = true;
+            if (settings.roundTopRight)    return true;
+            side = -1;
+            if (settings.roundTopLeft)     return true;
+            top = false;
+            if (settings.roundBottomLeft)  return true;
+            side = 1;
+            return settings.roundBottomRight;
         }
         #endregion
     }

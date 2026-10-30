@@ -182,23 +182,33 @@ namespace Chisel.Core
         public const string kNodeTypeName = "Half Pipe";
 
         #region OnEdit
+        // Length on the ends (growing both ways, so the arrow stays under the cursor), wall height on the right lip, radius
+        // on the right wall's inside, thickness on its outside, and the floor's width on its left end (where the left bend
+        // starts, or the open end of a quarter-pipe)
         public override void OnEdit(IChiselHandles handles)
         {
             var halfLength  = settings.length * 0.5f;
-            var middle      = settings.Top * 0.5f;
-            var frontPoint  = new Vector3(0, middle,  halfLength);
-            var backPoint   = new Vector3(0, middle, -halfLength);
+            var halfFloor   = settings.floorWidth * 0.5f;
+            var inner       = halfFloor + settings.radius;
+            var frontPoint  = new Vector3(0, settings.Top * 0.5f,  halfLength);
+            var backPoint   = new Vector3(0, settings.Top * 0.5f, -halfLength);
             var topPoint    = new Vector3(settings.OuterHalfWidth - settings.thickness * 0.5f, settings.Top, 0);
+            var radiusPoint = new Vector3(inner, settings.BendHeight + settings.wallHeight * 0.5f, 0);
+            var outerPoint  = new Vector3(settings.OuterHalfWidth, settings.Top * 0.5f, 0);
+            var floorPoint  = new Vector3(-halfFloor, settings.thickness, 0);
 
-            ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward);
-            ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back);
-            ChiselProfileHandles.DoFaceHandle(handles, ref topPoint, Vector3.up);
-
-            if (handles.modified)
-            {
-                settings.length     = math.max(0, frontPoint.z - backPoint.z);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref frontPoint, Vector3.forward))
+                settings.length = math.max(0, frontPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref backPoint, Vector3.back))
+                settings.length = math.max(0, -backPoint.z * 2);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref topPoint, Vector3.up))
                 settings.wallHeight = math.max(0, topPoint.y - settings.BendHeight);
-            }
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref radiusPoint, Vector3.left))
+                settings.radius = math.max(ChiselHalfPipe.kMinSize, radiusPoint.x - halfFloor);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref outerPoint, Vector3.right))
+                settings.thickness = math.max(ChiselHalfPipe.kMinSize, outerPoint.x - inner);
+            if (ChiselProfileHandles.DoFaceHandle(handles, ref floorPoint, Vector3.left))
+                settings.floorWidth = math.max(0, -floorPoint.x * 2);
         }
         #endregion
     }
