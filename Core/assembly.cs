@@ -37,6 +37,22 @@ using System.Runtime.CompilerServices;
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchAllocateBrushesJob<Chisel.Core.ChiselTorus>))]
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchCreateBrushesJob<Chisel.Core.ChiselTorus>))]
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.GeneratorBranchJobPool<Chisel.Core.ChiselTorus>.InitializeArraysJob))]
+// Fork: the profile generators
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchPrepareAndCountBrushesJob<Chisel.Core.ChiselHalfPipe>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchAllocateBrushesJob<Chisel.Core.ChiselHalfPipe>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchCreateBrushesJob<Chisel.Core.ChiselHalfPipe>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.GeneratorBranchJobPool<Chisel.Core.ChiselHalfPipe>.InitializeArraysJob))]
+
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchPrepareAndCountBrushesJob<Chisel.Core.ChiselRoundedBox>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchAllocateBrushesJob<Chisel.Core.ChiselRoundedBox>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchCreateBrushesJob<Chisel.Core.ChiselRoundedBox>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.GeneratorBranchJobPool<Chisel.Core.ChiselRoundedBox>.InitializeArraysJob))]
+
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchPrepareAndCountBrushesJob<Chisel.Core.ChiselFillet>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchAllocateBrushesJob<Chisel.Core.ChiselFillet>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.BranchCreateBrushesJob<Chisel.Core.ChiselFillet>))]
+[assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.GeneratorBranchJobPool<Chisel.Core.ChiselFillet>.InitializeArraysJob))]
+
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.EnsureCapacityListReferenceJob<Chisel.Core.BrushIntersectionLoop>))]
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.EnsureCapacityListForEachCountFromListJob<Chisel.Core.BrushData, Chisel.Core.IndexOrder>))]
 [assembly: Unity.Jobs.RegisterGenericJobType(typeof(Chisel.Core.DisposeReferenceChildBlobAssetReferenceJob<Chisel.Core.CompactTree>))]
